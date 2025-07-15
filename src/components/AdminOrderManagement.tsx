@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiService } from '@/lib/api';
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 
 interface Order {
   _id: string;
@@ -84,6 +85,14 @@ const AdminOrderManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | Order['status']>('all');
   const [paymentFilter, setPaymentFilter] = useState<'all' | Order['paymentStatus']>('all');
+  const [editOrder, setEditOrder] = useState<Order | null>(null);
+  const [editForm, setEditForm] = useState({
+    deliveryAddress: { fullName: '', address: '', city: '', state: '', pincode: '' },
+    estimatedDelivery: '',
+    status: '' as Order['status'],
+    paymentStatus: '' as Order['paymentStatus'],
+  });
+  const [editLoading, setEditLoading] = useState(false);
 
   // Fetch orders
   useEffect(() => {
@@ -150,6 +159,57 @@ const AdminOrderManagement = () => {
       toast.success(`Dispute ${action}d successfully`);
     } catch (err: any) {
       toast.error(err.message || 'Action failed');
+    }
+  };
+
+  const openEditModal = (order: Order) => {
+    setEditOrder(order);
+    setEditForm({
+      deliveryAddress: { ...order.deliveryAddress },
+      estimatedDelivery: order.estimatedDelivery || '',
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+    });
+  };
+
+  const closeEditModal = () => {
+    setEditOrder(null);
+    setEditForm({
+      deliveryAddress: { fullName: '', address: '', city: '', state: '', pincode: '' },
+      estimatedDelivery: '',
+      status: '' as Order['status'],
+      paymentStatus: '' as Order['paymentStatus'],
+    });
+    setEditLoading(false);
+  };
+
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    if (name.startsWith('deliveryAddress.')) {
+      const field = name.split('.')[1];
+      setEditForm(prev => ({ ...prev, deliveryAddress: { ...prev.deliveryAddress, [field]: value } }));
+    } else {
+      setEditForm(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleEditSave = async () => {
+    if (!editOrder) return;
+    setEditLoading(true);
+    try {
+      const endpoint = `/admin/orders/${editOrder._id}`;
+      const res = await apiService.put(endpoint, editForm);
+      if (res.success) {
+        toast.success('Order updated successfully');
+        setOrders(orders => orders.map(o => o._id === editOrder._id ? { ...o, ...editForm, deliveryAddress: { ...editForm.deliveryAddress } } : o));
+        closeEditModal();
+      } else {
+        toast.error(res.message || 'Failed to update order');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update order');
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -267,11 +327,11 @@ const AdminOrderManagement = () => {
         </div>
 
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Eye className="w-4 h-4" />
+          <Button variant="outline" size="sm" onClick={() => openEditModal(order)}>
+            <MoreHorizontal className="w-4 h-4" />
           </Button>
           <Button variant="outline" size="sm">
-            <MoreHorizontal className="w-4 h-4" />
+            <Eye className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -546,6 +606,66 @@ const AdminOrderManagement = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!editOrder} onOpenChange={v => !v && closeEditModal()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Order</DialogTitle>
+            <DialogDescription>Modify order details and save changes.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium">Recipient Name</label>
+              <input name="deliveryAddress.fullName" value={editForm.deliveryAddress.fullName} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Address</label>
+              <input name="deliveryAddress.address" value={editForm.deliveryAddress.address} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">City</label>
+              <input name="deliveryAddress.city" value={editForm.deliveryAddress.city} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">State</label>
+              <input name="deliveryAddress.state" value={editForm.deliveryAddress.state} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Pincode</label>
+              <input name="deliveryAddress.pincode" value={editForm.deliveryAddress.pincode} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Estimated Delivery</label>
+              <input name="estimatedDelivery" value={editForm.estimatedDelivery} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Status</label>
+              <select name="status" value={editForm.status} onChange={handleEditChange} className="w-full border rounded px-3 py-2">
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="processing">Processing</option>
+                <option value="shipped">Shipped</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="disputed">Disputed</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Payment Status</label>
+              <select name="paymentStatus" value={editForm.paymentStatus} onChange={handleEditChange} className="w-full border rounded px-3 py-2">
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+                <option value="failed">Failed</option>
+                <option value="refunded">Refunded</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeEditModal} disabled={editLoading}>Cancel</Button>
+            <Button onClick={handleEditSave} disabled={editLoading}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

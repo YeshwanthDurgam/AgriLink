@@ -63,6 +63,12 @@ module.exports = function roleCheck(...allowedRoles) {
       });
     }
 
+    // Debug log for role check
+    console.log('roleCheck middleware:', {
+      userRole: req.user.role,
+      allowedRoles
+    });
+
     // Check if user has any of the allowed roles
     const hasRole = allowedRoles.some(role => {
       // Check direct role match

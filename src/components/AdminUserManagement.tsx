@@ -9,7 +9,6 @@ import {
   ShoppingCart, 
   TrendingUp, 
   Search, 
-  Filter, 
   MoreHorizontal,
   Eye,
   Shield,
@@ -18,12 +17,12 @@ import {
   Phone,
   MapPin,
   Calendar,
-  Star,
   Package,
   IndianRupee
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiService } from '@/lib/api';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 interface User {
   _id: string;
@@ -55,6 +54,10 @@ const AdminUserManagement = () => {
   const [errorBuyers, setErrorBuyers] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended' | 'pending'>('all');
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [editUserType, setEditUserType] = useState<'farmer' | 'buyer' | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', location: '' });
+  const [editLoading, setEditLoading] = useState(false);
 
   // Fetch farmers
   useEffect(() => {
@@ -68,8 +71,12 @@ const AdminUserManagement = () => {
         } else {
           setErrorFarmers(res.message || 'Failed to fetch farmers');
         }
-      } catch (err: any) {
-        setErrorFarmers(err.message || 'Failed to fetch farmers');
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setErrorFarmers(err.message || 'Failed to fetch farmers');
+        } else {
+          setErrorFarmers('Failed to fetch farmers');
+        }
       } finally {
         setLoadingFarmers(false);
       }
@@ -89,8 +96,12 @@ const AdminUserManagement = () => {
         } else {
           setErrorBuyers(res.message || 'Failed to fetch buyers');
         }
-      } catch (err: any) {
-        setErrorBuyers(err.message || 'Failed to fetch buyers');
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setErrorBuyers(err.message || 'Failed to fetch buyers');
+        } else {
+          setErrorBuyers('Failed to fetch buyers');
+        }
       } finally {
         setLoadingBuyers(false);
       }
@@ -112,12 +123,11 @@ const AdminUserManagement = () => {
           user._id === userId 
             ? { 
                 ...user, 
-                status: action === 'suspend' ? 'suspended' : 'active',
+                status: (action === 'suspend' ? 'suspended' : 'active') as 'active' | 'suspended' | 'pending',
                 isVerified: action === 'verify' ? true : user.isVerified
               }
             : user
         );
-      
       if (userType === 'farmer') {
         setFarmers(updateUser);
       } else {
@@ -125,8 +135,64 @@ const AdminUserManagement = () => {
       }
       
       toast.success(`User ${action}d successfully`);
-    } catch (err: any) {
-      toast.error(err.message || 'Action failed');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        toast.error(err.message || 'Action failed');
+      } else {
+        toast.error('Action failed');
+      }
+    }
+  };
+
+  const openEditModal = (user: User, userType: 'farmer' | 'buyer') => {
+    setEditUser(user);
+    setEditUserType(userType);
+    setEditForm({
+      name: user.name || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      location: user.location || '',
+    });
+  };
+
+  const closeEditModal = () => {
+    setEditUser(null);
+    setEditUserType(null);
+    setEditForm({ name: '', email: '', phone: '', location: '' });
+    setEditLoading(false);
+  };
+
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditForm({ ...editForm, [e.target.name]: e.target.value });
+  };
+
+  const handleEditSave = async () => {
+    if (!editUser || !editUserType) return;
+    setEditLoading(true);
+    try {
+      const endpoint = editUserType === 'farmer'
+        ? `/admin/farmers/${editUser._id}`
+        : `/admin/customers/${editUser._id}`;
+      const res = await apiService.put(endpoint, editForm);
+      if (res.success) {
+        toast.success('User updated successfully');
+        if (editUserType === 'farmer') {
+          setFarmers(farmers => farmers.map(u => u._id === editUser._id ? { ...u, ...editForm } : u));
+        } else {
+          setBuyers(buyers => buyers.map(u => u._id === editUser._id ? { ...u, ...editForm } : u));
+        }
+        closeEditModal();
+      } else {
+        toast.error(res.message || 'Failed to update user');
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        toast.error(err.message || 'Failed to update user');
+      } else {
+        toast.error('Failed to update user');
+      }
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -182,11 +248,11 @@ const AdminUserManagement = () => {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Eye className="w-4 h-4" />
+          <Button variant="outline" size="sm" onClick={() => openEditModal(user, userType)}>
+            <MoreHorizontal className="w-4 h-4" />
           </Button>
           <Button variant="outline" size="sm">
-            <MoreHorizontal className="w-4 h-4" />
+            <Eye className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -335,7 +401,7 @@ const AdminUserManagement = () => {
                 </div>
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'suspended' | 'pending')}
                   className="border rounded-md px-3 py-2"
                 >
                   <option value="all">All Status</option>
@@ -383,7 +449,7 @@ const AdminUserManagement = () => {
                 </div>
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'suspended' | 'pending')}
                   className="border rounded-md px-3 py-2"
                 >
                   <option value="all">All Status</option>
@@ -415,6 +481,37 @@ const AdminUserManagement = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!editUser} onOpenChange={v => !v && closeEditModal()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>Modify user details and save changes.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium">Name</label>
+              <input name="name" value={editForm.name} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Email</label>
+              <input name="email" value={editForm.email} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Phone</label>
+              <input name="phone" value={editForm.phone} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Location</label>
+              <input name="location" value={editForm.location} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeEditModal} disabled={editLoading}>Cancel</Button>
+            <Button onClick={handleEditSave} disabled={editLoading}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -114,28 +114,28 @@ router.use(auth);
 
 // Farmer routes (only farmers can access)
 router.post('/', 
-  roleCheck('farmer'),
+  roleCheck('farmer', 'admin'),
   createProductValidation, 
   handleValidationErrors, 
   productController.createProduct
 );
 
 router.put('/:id', 
-  roleCheck('farmer'),
+  roleCheck('farmer', 'admin'),
   updateProductValidation, 
   handleValidationErrors, 
   productController.updateProduct
 );
 
 router.delete('/:id', 
-  roleCheck('farmer'),
+  roleCheck('farmer', 'admin'),
   deleteProductValidation, 
   handleValidationErrors, 
   productController.deleteProduct
 );
 
 router.post('/:id/images', 
-  roleCheck('farmer'),
+  roleCheck('farmer', 'admin'),
   uploadProductImagesValidation, 
   handleValidationErrors,
   upload.array('images', 5), // Maximum 5 images
@@ -143,7 +143,7 @@ router.post('/:id/images',
 );
 
 router.delete('/:id/images/:imageId', 
-  roleCheck('farmer'),
+  roleCheck('farmer', 'admin'),
   productController.deleteProductImage
 );
 

@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Outlet } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
 import { CartProvider } from "./contexts/CartContext";
@@ -29,8 +29,22 @@ import FarmerDetail from "./pages/FarmerDetail";
 import NotFound from "./pages/NotFound";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import AdminUserManagement from './components/AdminUserManagement';
+import AdminOrderManagement from './components/AdminOrderManagement';
+import AdminQualityControl from './components/AdminQualityControl';
+import AdminCommunication from './components/AdminCommunication';
+import AdminAnalytics from './components/AdminAnalytics';
+import DashboardLayout from './components/DashboardLayout';
 
 const queryClient = new QueryClient();
+
+function AdminPanel() {
+  return (
+    <DashboardLayout userRole="admin">
+      <Outlet />
+    </DashboardLayout>
+  );
+}
 
 function App() {
   return (
@@ -56,7 +70,19 @@ function App() {
               <Route path="/manage-products" element={<ManageProducts />} />
               <Route path="/farmer-earnings" element={<FarmerEarnings />} />
               <Route path="/buyer-dashboard" element={<BuyerDashboard />} />
-              <Route path="/admin-dashboard" element={<AdminDashboard />} />
+              <Route path="/admin/*" element={<AdminPanel />}>
+                <Route index element={<AdminDashboard />} />
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="users" element={<AdminUserManagement />} />
+                <Route path="orders" element={<AdminOrderManagement />} />
+                <Route path="products">
+                  <Route index element={<ManageProducts />} />
+                  <Route path="add" element={<AddProduct />} />
+                </Route>
+                <Route path="quality" element={<AdminQualityControl />} />
+                <Route path="communication" element={<AdminCommunication />} />
+                <Route path="analytics" element={<AdminAnalytics />} />
+              </Route>
               <Route path="/delivery" element={<Delivery />} />
               <Route path="/deals" element={<Deals />} />
               <Route path="/whats-new" element={<WhatsNew />} />

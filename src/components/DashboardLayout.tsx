@@ -51,7 +51,7 @@ const DashboardLayout = ({ children, userRole }: DashboardLayoutProps) => {
       case 'analytics_manager':
       case 'pricing_manager':
         return [
-          { icon: Home, label: 'Dashboard', href: '/admin-dashboard' },
+          { icon: Home, label: 'Dashboard', href: '/admin' },
           { icon: Users, label: 'Users', href: '/admin/users' },
           { icon: Package, label: 'Products', href: '/admin/products' },
           { icon: ShoppingCart, label: 'Orders', href: '/admin/orders' },
@@ -68,9 +68,9 @@ const DashboardLayout = ({ children, userRole }: DashboardLayoutProps) => {
   const navItems = getNavItems();
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="h-screen bg-gray-50">
       {/* Sidebar */}
-      <div className="w-64 bg-white shadow-sm border-r border-gray-200">
+      <div className="fixed top-0 left-0 h-full w-64 bg-white shadow-sm border-r border-gray-200 z-20">
         <div className="p-6 border-b border-gray-200">
           <Link to="/" className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
@@ -82,13 +82,11 @@ const DashboardLayout = ({ children, userRole }: DashboardLayoutProps) => {
             </div>
           </Link>
         </div>
-
         <nav className="mt-6">
           <div className="px-3">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.href;
-              
               return (
                 <Link
                   key={item.href}
@@ -110,11 +108,9 @@ const DashboardLayout = ({ children, userRole }: DashboardLayoutProps) => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50">
-          <div className="container mx-auto px-6 py-8">
-            {children}
-          </div>
+      <div className="ml-64 h-full flex flex-col">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 px-6 py-8">
+          {children}
         </main>
       </div>
     </div>

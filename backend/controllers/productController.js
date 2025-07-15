@@ -7,6 +7,8 @@ const Review = require('../models/Review');
 // Create a new product
 const createProduct = async (req, res) => {
   try {
+    console.log('DEBUG createProduct - req.user:', req.user);
+    console.log('DEBUG createProduct - req.body:', req.body);
     const {
       name,
       description,
@@ -32,7 +34,8 @@ const createProduct = async (req, res) => {
       isFeatured,
       isSeasonal,
       tags,
-      searchKeywords
+      searchKeywords,
+      farmer: farmerFromBody // <-- allow farmer to be passed in body
     } = req.body;
 
     // Require basePrice or fallback to price
@@ -47,12 +50,34 @@ const createProduct = async (req, res) => {
       });
     }
 
-    // Get farmer information from authenticated user
-    const farmer = await User.findById(req.user.id);
-    if (!farmer || farmer.role !== 'farmer') {
+    let farmer;
+    // If admin, allow specifying farmer in body
+    if (req.user.role === 'admin') {
+      if (!farmerFromBody) {
+        return res.status(400).json({
+          success: false,
+          message: 'Admin must specify a farmer for the product'
+        });
+      }
+      farmer = await User.findById(farmerFromBody);
+      if (!farmer || farmer.role !== 'farmer') {
+        return res.status(400).json({
+          success: false,
+          message: 'Specified farmer does not exist or is not a farmer'
+        });
+      }
+    } else if (req.user.role === 'farmer') {
+      farmer = await User.findById(req.user.id);
+      if (!farmer) {
+        return res.status(400).json({
+          success: false,
+          message: 'Farmer not found'
+        });
+      }
+    } else {
       return res.status(403).json({
         success: false,
-        message: 'Only farmers can create products'
+        message: 'Only farmers or admins can create products'
       });
     }
 
@@ -74,7 +99,7 @@ const createProduct = async (req, res) => {
       harvestDate,
       expiryDate,
       shelfLife,
-      farmer: req.user.id,
+      farmer: farmer._id,
       farmName: farmName || farmer.farmName,
       farmLocation: farmLocation || farmer.farmLocation,
       availableLocations: availableLocations || [farmer.location],
@@ -430,11 +455,11 @@ const uploadProductImages = async (req, res) => {
       });
     }
 
-    // Check if user owns the product
-    if (product.farmer.toString() !== req.user.id.toString()) {
+    // Allow if user is the farmer or an admin
+    if (product.farmer.toString() !== req.user.id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'You can only upload images for your own products'
+        message: 'You can add images to your product only'
       });
     }
 
@@ -482,11 +507,11 @@ const deleteProductImage = async (req, res) => {
       });
     }
 
-    // Check if user owns the product
-    if (product.farmer.toString() !== req.user.id.toString()) {
+    // Allow if user is the farmer or an admin
+    if (product.farmer.toString() !== req.user.id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'You can only delete images from your own products'
+        message: 'You can delete images from your product only'
       });
     }
 

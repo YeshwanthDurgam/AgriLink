@@ -3,7 +3,6 @@ import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Users, 
   Package, 
@@ -215,556 +214,358 @@ const AdminDashboard = () => {
   }
 
   return (
-    <DashboardLayout userRole="admin">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-600">Manage the AgriDirect platform and ensure quality standards</p>
-          </div>
-          <button
-            onClick={() => fetchDashboardData(true)}
-            disabled={refreshing}
-            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+          <p className="text-gray-600">Manage the AgriDirect platform and ensure quality standards</p>
         </div>
+        <button
+          onClick={() => fetchDashboardData(true)}
+          disabled={refreshing}
+          className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+          {refreshing ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </div>
 
-        {/* Stats Cards */}
-        {dashboardStats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Farmers</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{dashboardStats.users.farmers}</div>
-                <p className="text-xs text-green-600">+{dashboardStats.users.newThisMonth} this month</p>
-              </CardContent>
-            </Card>
+      {/* Stats Cards */}
+      {dashboardStats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Farmers</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{dashboardStats.users.farmers}</div>
+              <p className="text-xs text-green-600">+{dashboardStats.users.newThisMonth} this month</p>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Buyers</CardTitle>
-                <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{dashboardStats.users.buyers}</div>
-                <p className="text-xs text-green-600">+{dashboardStats.users.newThisMonth} this month</p>
-              </CardContent>
-            </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Buyers</CardTitle>
+              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{dashboardStats.users.buyers}</div>
+              <p className="text-xs text-green-600">+{dashboardStats.users.newThisMonth} this month</p>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Products</CardTitle>
-                <Package className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{dashboardStats.products.active}</div>
-                <p className="text-xs text-green-600">{dashboardStats.products.pending} pending</p>
-              </CardContent>
-            </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Products</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{dashboardStats.products.active}</div>
+              <p className="text-xs text-green-600">{dashboardStats.products.pending} pending</p>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-                <IndianRupee className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{dashboardStats.orders.total}</div>
-                <p className="text-xs text-green-600">{dashboardStats.orders.thisWeek} this week</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Real-time Activity Feed */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  Recent Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4 max-h-96 overflow-y-auto">
-                  {recentActivity.length > 0 ? (
-                    recentActivity.map((activity, index) => (
-                      <div key={index} className="flex items-start gap-3 p-3 border rounded-lg">
-                        <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{activity.action}</p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(activity.timestamp).toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <Clock className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                      <p>No recent activity</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5" />
-                  Top Products
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {topProducts.length > 0 ? (
-                    topProducts.map((product, index) => (
-                      <div key={product._id || index} className="flex items-center gap-3 p-2 border rounded">
-                        <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center text-sm font-bold">
-                          {index + 1}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{product.name}</p>
-                          <p className="text-xs text-gray-500">{product.category}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-semibold">{product.orders || 0}</p>
-                          <p className="text-xs text-gray-500">orders</p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-4 text-gray-500">
-                      <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">No products yet</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+              <IndianRupee className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{dashboardStats.orders.total}</div>
+              <p className="text-xs text-green-600">{dashboardStats.orders.thisWeek} this week</p>
+            </CardContent>
+          </Card>
         </div>
+      )}
 
-        {/* Enhanced Quality Metrics */}
-        {dashboardStats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="border-yellow-200 bg-yellow-50">
-              <CardContent className="p-4 text-center">
-                <Flag className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
-                <div className="text-2xl font-bold text-yellow-800">{dashboardStats.quality.totalFlags}</div>
-                <p className="text-sm text-yellow-700">Quality Flags</p>
-              </CardContent>
-            </Card>
-            
-            <Card className="border-red-200 bg-red-50">
-              <CardContent className="p-4 text-center">
-                <AlertTriangle className="w-8 h-8 text-red-600 mx-auto mb-2" />
-                <div className="text-2xl font-bold text-red-800">{dashboardStats.quality.pendingFlags}</div>
-                <p className="text-sm text-red-700">Pending Flags</p>
-              </CardContent>
-            </Card>
-            
-            <Card className="border-green-200 bg-green-50">
-              <CardContent className="p-4 text-center">
-                <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                <div className="text-2xl font-bold text-green-800">{dashboardStats.announcements.active}</div>
-                <p className="text-sm text-green-700">Active Announcements</p>
-              </CardContent>
-            </Card>
-            
-            <Card className="border-blue-200 bg-blue-50">
-              <CardContent className="p-4 text-center">
-                <TrendingUp className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                <div className="text-2xl font-bold text-blue-800">4.6</div>
-                <p className="text-sm text-blue-700">Avg Platform Rating</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* System Health Overview */}
-        {systemHealth && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="border-green-200 bg-green-50">
-              <CardContent className="p-4 text-center">
-                <Database className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                <div className="text-2xl font-bold text-green-800">
-                  {systemHealth.database.status === 'connected' ? '✓' : '✗'}
-                </div>
-                <p className="text-sm text-green-700">Database</p>
-              </CardContent>
-            </Card>
-            
-            <Card className="border-blue-200 bg-blue-50">
-              <CardContent className="p-4 text-center">
-                <Cpu className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                <div className="text-2xl font-bold text-blue-800">{systemHealth.performance.errorRate}%</div>
-                <p className="text-sm text-blue-700">Error Rate</p>
-              </CardContent>
-            </Card>
-            
-            <Card className="border-purple-200 bg-purple-50">
-              <CardContent className="p-4 text-center">
-                <HardDrive className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-                <div className="text-2xl font-bold text-purple-800">{systemHealth.memory.heapUsed}MB</div>
-                <p className="text-sm text-purple-700">Memory Used</p>
-              </CardContent>
-            </Card>
-            
-            <Card className="border-orange-200 bg-orange-50">
-              <CardContent className="p-4 text-center">
-                <Clock className="w-8 h-8 text-orange-600 mx-auto mb-2" />
-                <div className="text-2xl font-bold text-orange-800">
-                  {formatUptime(systemHealth.uptime.process)}
-                </div>
-                <p className="text-sm text-orange-700">Uptime</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Main Content Tabs */}
-        <Tabs defaultValue="approvals" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-7">
-            <TabsTrigger value="approvals" className="flex items-center gap-2">
-              <Clock className="w-4 h-4" />
-              Approvals ({pendingProducts.length})
-            </TabsTrigger>
-            <TabsTrigger value="quality" className="flex items-center gap-2">
-              <Shield className="w-4 h-4" />
-              Quality Control
-            </TabsTrigger>
-            <TabsTrigger value="orders" className="flex items-center gap-2">
-              <Package className="w-4 h-4" />
-              Orders
-            </TabsTrigger>
-            <TabsTrigger value="analytics">
-              <TrendingUp className="w-4 h-4 mr-2" />
-              Analytics
-            </TabsTrigger>
-            <TabsTrigger value="users">
-              <Users className="w-4 h-4 mr-2" />
-              Users
-            </TabsTrigger>
-            <TabsTrigger value="communication">
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Communication
-            </TabsTrigger>
-            <TabsTrigger value="system">
-              <Settings className="w-4 h-4 mr-2" />
-              System
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="approvals" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-yellow-600" />
-                  Products Pending Approval
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {pendingProducts.map((product: any) => (
-                    <div key={product._id} className="flex items-center gap-4 p-4 border rounded-lg">
-                      <img
-                        src={getPrimaryImageUrl(product.images)}
-                        alt={product.name}
-                        className="w-16 h-16 object-cover rounded-lg"
-                        onError={(e) => {
-                          // Fallback to placeholder if image fails to load
-                          const target = e.target as HTMLImageElement;
-                          target.src = '/placeholder.svg';
-                        }}
-                      />
-                      
+      {/* Real-time Activity Feed */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                Recent Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {recentActivity.length > 0 ? (
+                  recentActivity.map((activity, index) => (
+                    <div key={index} className="flex items-start gap-3 p-3 border rounded-lg">
+                      <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold">{product.name}</h3>
-                          <Badge className="bg-yellow-100 text-yellow-800">
-                            <Clock className="w-3 h-3 mr-1" />
-                            Pending
-                          </Badge>
-                        </div>
-                        <div className="text-sm text-gray-600 mb-2">
-                          by {product.farmer?.name || 'Unknown'} • {product.category} • ₹{product.basePrice}/{product.unit}
-                        </div>
-                        <div className="flex items-center gap-4 text-xs text-gray-500">
-                          <span>Quantity: {product.quantity} {product.unit}s</span>
-                          <span>Submitted: {new Date(product.createdAt).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => { setSelectedProduct(product); setReviewModalOpen(true); }}>
-                          <Eye className="w-4 h-4 mr-1" />
-                          Review
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          className="bg-green-600 hover:bg-green-700"
-                          onClick={() => { setConfirmApproveOpen(true); setSelectedProduct(product); }}
-                        >
-                          <ThumbsUp className="w-4 h-4 mr-1" />
-                          Approve
-                        </Button>
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          onClick={() => { setConfirmRejectOpen(true); setSelectedProduct(product); }}
-                        >
-                          <ThumbsDown className="w-4 h-4 mr-1" />
-                          Reject
-                        </Button>
+                        <p className="text-sm font-medium">{activity.action}</p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(activity.timestamp).toLocaleString()}
+                        </p>
                       </div>
                     </div>
-                  ))}
-                  
-                  {pendingProducts.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                      <p>All products have been reviewed!</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="quality" className="space-y-4">
-            <AdminQualityControl />
-          </TabsContent>
-
-          <TabsContent value="orders" className="space-y-4">
-            <AdminOrderManagement />
-          </TabsContent>
-
-          <TabsContent value="analytics" className="space-y-4">
-            <AdminAnalytics />
-          </TabsContent>
-
-          <TabsContent value="users" className="space-y-4">
-            <AdminUserManagement />
-          </TabsContent>
-
-          <TabsContent value="communication" className="space-y-4">
-            <AdminCommunication />
-          </TabsContent>
-
-          <TabsContent value="system" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>System Health</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {systemHealth && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-semibold mb-2">Database Status</h4>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${systemHealth.database.status === 'connected' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                          <span>{systemHealth.database.status}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-semibold mb-2">Performance</h4>
-                        <div className="space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-sm">Recent Actions:</span>
-                            <span className="text-sm font-medium">{systemHealth.performance.recentActions}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm">Error Rate:</span>
-                            <span className="text-sm font-medium">{systemHealth.performance.errorRate}%</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-semibold mb-2">Memory Usage</h4>
-                        <div className="space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-sm">RSS:</span>
-                            <span className="text-sm font-medium">{systemHealth.memory.rss} MB</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm">Heap Used:</span>
-                            <span className="text-sm font-medium">{systemHealth.memory.heapUsed} MB</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-semibold mb-2">Uptime</h4>
-                        <div className="space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-sm">Process:</span>
-                            <span className="text-sm font-medium">{formatUptime(systemHealth.uptime.process)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm">Server:</span>
-                            <span className="text-sm font-medium">
-                              {new Date(systemHealth.uptime.server).toLocaleDateString()}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Clock className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>No recent activity</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Dialog open={reviewModalOpen} onOpenChange={setReviewModalOpen}>
-          <DialogContent className="max-w-2xl">
-            {selectedProduct && (
-              <>
-                <DialogHeader>
-                  <DialogTitle>Review Product</DialogTitle>
-                  <DialogDescription>
-                    Review all details before approving or rejecting this product.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="flex gap-6 mt-2">
-                  <img
-                    src={getPrimaryImageUrl(selectedProduct.images)}
-                    alt={selectedProduct.name}
-                    className="w-32 h-32 object-cover rounded-lg border"
-                    onError={(e) => {
-                      // Fallback to placeholder if image fails to load
-                      const target = e.target as HTMLImageElement;
-                      target.src = '/placeholder.svg';
-                    }}
-                  />
-                  <div className="flex-1 space-y-2">
-                    <h2 className="text-xl font-bold">{selectedProduct.name}</h2>
-                    <div className="text-gray-600">{selectedProduct.description}</div>
-                    <div className="flex gap-2 text-sm text-gray-500">
-                      <span>Category: {selectedProduct.category}</span>
-                      <span>• Unit: {selectedProduct.unit}</span>
-                      <span>• Price: ₹{selectedProduct.basePrice || selectedProduct.price}/{selectedProduct.unit}</span>
+        <div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" />
+                Top Products
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {topProducts.length > 0 ? (
+                  topProducts.map((product, index) => (
+                    <div key={product._id || index} className="flex items-center gap-3 p-2 border rounded">
+                      <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{product.name}</p>
+                        <p className="text-xs text-gray-500">{product.category}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold">{product.orders || 0}</p>
+                        <p className="text-xs text-gray-500">orders</p>
+                      </div>
                     </div>
-                    <div className="flex gap-2 text-sm text-gray-500">
-                      <span>Quantity: {selectedProduct.quantity} {selectedProduct.unit}s</span>
-                      <span>• Min Order: {selectedProduct.minOrderQuantity}</span>
-                      {selectedProduct.maxOrderQuantity && <span>• Max Order: {selectedProduct.maxOrderQuantity}</span>}
-                    </div>
-                    <div className="flex gap-2 text-sm text-gray-500">
-                      <span>Organic: {selectedProduct.organic ? 'Yes' : 'No'}</span>
-                      <span>• Grade: {selectedProduct.qualityGrade}</span>
-                      <span>• Certifications: {selectedProduct.certifications?.join(', ') || 'None'}</span>
-                    </div>
-                    <div className="flex gap-2 text-sm text-gray-500">
-                      <span>Harvest: {selectedProduct.harvestDate ? new Date(selectedProduct.harvestDate).toLocaleDateString() : 'N/A'}</span>
-                      <span>• Expiry: {selectedProduct.expiryDate ? new Date(selectedProduct.expiryDate).toLocaleDateString() : 'N/A'}</span>
-                      <span>• Shelf Life: {selectedProduct.shelfLife ? selectedProduct.shelfLife + ' days' : 'N/A'}</span>
-                    </div>
-                    <div className="flex gap-2 text-sm text-gray-500">
-                      <span>Farm: {selectedProduct.farmName || 'N/A'}</span>
-                      <span>• Location: {selectedProduct.farmLocation || 'N/A'}</span>
-                    </div>
-                    <div className="flex gap-2 text-sm text-gray-500">
-                      <span>Tags: {selectedProduct.tags?.join(', ') || 'None'}</span>
-                    </div>
-                    <div className="flex gap-2 text-sm text-gray-500">
-                      <span>Submitted: {selectedProduct.createdAt ? new Date(selectedProduct.createdAt).toLocaleDateString() : 'N/A'}</span>
-                    </div>
-                    <div className="flex gap-2 text-sm text-gray-500">
-                      <span>Farmer: {selectedProduct.farmer?.name || 'Unknown'}</span>
-                      <span>• Verified: {selectedProduct.farmer?.verificationStatus === 'verified' ? 'Yes' : 'No'}</span>
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-gray-500">
+                    <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm">No products yet</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Enhanced Quality Metrics */}
+      {dashboardStats && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="border-yellow-200 bg-yellow-50">
+            <CardContent className="p-4 text-center">
+              <Flag className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
+              <div className="text-2xl font-bold text-yellow-800">{dashboardStats.quality.totalFlags}</div>
+              <p className="text-sm text-yellow-700">Quality Flags</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="p-4 text-center">
+              <AlertTriangle className="w-8 h-8 text-red-600 mx-auto mb-2" />
+              <div className="text-2xl font-bold text-red-800">{dashboardStats.quality.pendingFlags}</div>
+              <p className="text-sm text-red-700">Pending Flags</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-green-200 bg-green-50">
+            <CardContent className="p-4 text-center">
+              <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
+              <div className="text-2xl font-bold text-green-800">{dashboardStats.announcements.active}</div>
+              <p className="text-sm text-green-700">Active Announcements</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="p-4 text-center">
+              <TrendingUp className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+              <div className="text-2xl font-bold text-blue-800">4.6</div>
+              <p className="text-sm text-blue-700">Avg Platform Rating</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* System Health Overview */}
+      {systemHealth && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="border-green-200 bg-green-50">
+            <CardContent className="p-4 text-center">
+              <Database className="w-8 h-8 text-green-600 mx-auto mb-2" />
+              <div className="text-2xl font-bold text-green-800">
+                {systemHealth.database.status === 'connected' ? '✓' : '✗'}
+              </div>
+              <p className="text-sm text-green-700">Database</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="p-4 text-center">
+              <Cpu className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+              <div className="text-2xl font-bold text-blue-800">{systemHealth.performance.errorRate}%</div>
+              <p className="text-sm text-blue-700">Error Rate</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-purple-200 bg-purple-50">
+            <CardContent className="p-4 text-center">
+              <HardDrive className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+              <div className="text-2xl font-bold text-purple-800">{systemHealth.memory.heapUsed}MB</div>
+              <p className="text-sm text-purple-700">Memory Used</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-orange-200 bg-orange-50">
+            <CardContent className="p-4 text-center">
+              <Clock className="w-8 h-8 text-orange-600 mx-auto mb-2" />
+              <div className="text-2xl font-bold text-orange-800">
+                {formatUptime(systemHealth.uptime.process)}
+              </div>
+              <p className="text-sm text-orange-700">Uptime</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Review Modal and other dialogs remain as before */}
+      <Dialog open={reviewModalOpen} onOpenChange={setReviewModalOpen}>
+        <DialogContent className="max-w-2xl">
+          {selectedProduct && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Review Product</DialogTitle>
+                <DialogDescription>
+                  Review all details before approving or rejecting this product.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex gap-6 mt-2">
+                <img
+                  src={getPrimaryImageUrl(selectedProduct.images)}
+                  alt={selectedProduct.name}
+                  className="w-32 h-32 object-cover rounded-lg border"
+                  onError={(e) => {
+                    // Fallback to placeholder if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.src = '/placeholder.svg';
+                  }}
+                />
+                <div className="flex-1 space-y-2">
+                  <h2 className="text-xl font-bold">{selectedProduct.name}</h2>
+                  <div className="text-gray-600">{selectedProduct.description}</div>
+                  <div className="flex gap-2 text-sm text-gray-500">
+                    <span>Category: {selectedProduct.category}</span>
+                    <span>• Unit: {selectedProduct.unit}</span>
+                    <span>• Price: ₹{selectedProduct.basePrice || selectedProduct.price}/{selectedProduct.unit}</span>
+                  </div>
+                  <div className="flex gap-2 text-sm text-gray-500">
+                    <span>Quantity: {selectedProduct.quantity} {selectedProduct.unit}s</span>
+                    <span>• Min Order: {selectedProduct.minOrderQuantity}</span>
+                    {selectedProduct.maxOrderQuantity && <span>• Max Order: {selectedProduct.maxOrderQuantity}</span>}
+                  </div>
+                  <div className="flex gap-2 text-sm text-gray-500">
+                    <span>Organic: {selectedProduct.organic ? 'Yes' : 'No'}</span>
+                    <span>• Grade: {selectedProduct.qualityGrade}</span>
+                    <span>• Certifications: {selectedProduct.certifications?.join(', ') || 'None'}</span>
+                  </div>
+                  <div className="flex gap-2 text-sm text-gray-500">
+                    <span>Harvest: {selectedProduct.harvestDate ? new Date(selectedProduct.harvestDate).toLocaleDateString() : 'N/A'}</span>
+                    <span>• Expiry: {selectedProduct.expiryDate ? new Date(selectedProduct.expiryDate).toLocaleDateString() : 'N/A'}</span>
+                    <span>• Shelf Life: {selectedProduct.shelfLife ? selectedProduct.shelfLife + ' days' : 'N/A'}</span>
+                  </div>
+                  <div className="flex gap-2 text-sm text-gray-500">
+                    <span>Farm: {selectedProduct.farmName || 'N/A'}</span>
+                    <span>• Location: {selectedProduct.farmLocation || 'N/A'}</span>
+                  </div>
+                  <div className="flex gap-2 text-sm text-gray-500">
+                    <span>Tags: {selectedProduct.tags?.join(', ') || 'None'}</span>
+                  </div>
+                  <div className="flex gap-2 text-sm text-gray-500">
+                    <span>Submitted: {selectedProduct.createdAt ? new Date(selectedProduct.createdAt).toLocaleDateString() : 'N/A'}</span>
+                  </div>
+                  <div className="flex gap-2 text-sm text-gray-500">
+                    <span>Farmer: {selectedProduct.farmer?.name || 'Unknown'}</span>
+                    <span>• Verified: {selectedProduct.farmer?.verificationStatus === 'verified' ? 'Yes' : 'No'}</span>
                   </div>
                 </div>
-                <DialogFooter className="mt-6 flex gap-2 justify-end">
-                  <AlertDialog open={confirmApproveOpen} onOpenChange={setConfirmApproveOpen}>
-                    <AlertDialogTrigger asChild>
-                      <Button 
-                        size="sm" 
-                        className="bg-green-600 hover:bg-green-700"
-                        onClick={() => setConfirmApproveOpen(true)}
+              </div>
+              <DialogFooter className="mt-6 flex gap-2 justify-end">
+                <AlertDialog open={confirmApproveOpen} onOpenChange={setConfirmApproveOpen}>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      size="sm" 
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => setConfirmApproveOpen(true)}
+                    >
+                      <ThumbsUp className="w-4 h-4 mr-1" />
+                      Approve
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Approve Product?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to approve this product? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={async () => {
+                          await handleApproveProduct(selectedProduct._id);
+                          setReviewModalOpen(false);
+                          setConfirmApproveOpen(false);
+                        }}
                       >
-                        <ThumbsUp className="w-4 h-4 mr-1" />
                         Approve
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Approve Product?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to approve this product? This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={async () => {
-                            await handleApproveProduct(selectedProduct._id);
-                            setReviewModalOpen(false);
-                            setConfirmApproveOpen(false);
-                          }}
-                        >
-                          Approve
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                  <AlertDialog open={confirmRejectOpen} onOpenChange={setConfirmRejectOpen}>
-                    <AlertDialogTrigger asChild>
-                      <Button 
-                        variant="destructive" 
-                        size="sm"
-                        onClick={() => setConfirmRejectOpen(true)}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <AlertDialog open={confirmRejectOpen} onOpenChange={setConfirmRejectOpen}>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={() => setConfirmRejectOpen(true)}
+                    >
+                      <ThumbsDown className="w-4 h-4 mr-1" />
+                      Reject
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Reject Product?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to reject this product? This action cannot be undone and the farmer will be notified.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={async () => {
+                          await handleRejectProduct(selectedProduct._id);
+                          setReviewModalOpen(false);
+                          setConfirmRejectOpen(false);
+                        }}
                       >
-                        <ThumbsDown className="w-4 h-4 mr-1" />
                         Reject
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Reject Product?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to reject this product? This action cannot be undone and the farmer will be notified.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={async () => {
-                            await handleRejectProduct(selectedProduct._id);
-                            setReviewModalOpen(false);
-                            setConfirmRejectOpen(false);
-                          }}
-                        >
-                          Reject
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                  <DialogClose asChild>
-                    <Button variant="outline" size="sm">Close</Button>
-                  </DialogClose>
-                </DialogFooter>
-              </>
-            )}
-          </DialogContent>
-        </Dialog>
-      </div>
-    </DashboardLayout>
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <DialogClose asChild>
+                  <Button variant="outline" size="sm">Close</Button>
+                </DialogClose>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 };
 

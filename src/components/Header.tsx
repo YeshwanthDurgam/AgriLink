@@ -82,7 +82,7 @@ const Header = () => {
                   <Link to="/farmer-dashboard" className="hover:text-green-600 transition-colors duration-200 font-medium bg-green-100 px-2 py-1 rounded">Farmer Dashboard</Link>
                 )}
                 {user?.role === 'admin' && (
-                  <Link to="/admin-dashboard" className="hover:text-green-600 transition-colors duration-200 font-medium bg-red-100 px-2 py-1 rounded">Admin Panel</Link>
+                  <Link to="/admin" className="hover:text-green-600 transition-colors duration-200 font-medium bg-red-100 px-2 py-1 rounded">Admin Panel</Link>
                 )}
               </>
             ) : (
@@ -322,7 +322,7 @@ const Header = () => {
 
                         {isAuthenticated && user?.role === 'admin' && (
                           <>
-                            <Link to="/admin-dashboard" className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                            <Link to="/admin" className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
                               <Shield className="h-5 w-5" />
                               <span>Admin Dashboard</span>
                             </Link>
@@ -478,7 +478,7 @@ const Header = () => {
                       {user?.role === 'admin' && (
                         <div className="mb-2 border-t border-gray-100 pt-2">
                           <Link 
-                            to="/admin-dashboard" 
+                            to="/admin" 
                             className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors duration-200"
                             onClick={closeAccountDropdown}
                           >
