@@ -20,14 +20,14 @@ import {
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/lib/api';
 import { getPrimaryImageUrl } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 const ManageProducts = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all'); // keep for UI, but override for admin fetch
   const [editProduct, setEditProduct] = useState<any>(null);
   const [editForm, setEditForm] = useState({
     name: '',
@@ -39,11 +39,41 @@ const ManageProducts = () => {
     status: '',
   });
   const [editLoading, setEditLoading] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Approve product mutation
+  const approveProductMutation = useMutation({
+    mutationFn: (productId: string) => apiService.updateProductStatus(productId, 'active'),
+    onSuccess: () => {
+      toast.success('Product approved successfully');
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+    onError: (error: any) => {
+      console.error('Approve product error:', error);
+      const message = error?.message || (error?.response?.message) || 'Failed to approve product';
+      toast.error(message);
+    }
+  });
+
+  // Delete product mutation
+  const deleteProductMutation = useMutation({
+    mutationFn: (productId: string) => apiService.deleteProduct(productId),
+    onSuccess: () => {
+      toast.success('Product deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+    onError: (error: any) => {
+      console.error('Delete product error:', error);
+      const message = error?.message || (error?.response?.message) || 'Failed to delete product';
+      toast.error(message);
+    }
+  });
 
   // Fetch products from backend
+  // For admin, fetch all products regardless of status
   const { data, isLoading, error } = useQuery({
     queryKey: ['products'],
-    queryFn: () => apiService.getProducts()
+    queryFn: () => apiService.getProducts({ status: 'all' })
   });
   const products = data?.products || [];
 
@@ -220,7 +250,11 @@ const ManageProducts = () => {
         <CardContent>
           <div className="space-y-4">
             {filteredProducts.map((product: any) => (
-              <div key={product._id || product.id} className="flex items-center gap-4 p-4 border rounded-lg hover:bg-gray-50">
+              <div
+                key={product._id || product.id}
+                className="flex items-center gap-4 p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
+                onClick={() => openEditModal(product)}
+              >
                 <img
                   src={getPrimaryImageUrl(product.images)}
                   alt={product.name}
@@ -246,6 +280,32 @@ const ManageProducts = () => {
                     <span>Listed: {product.createdAt ? new Date(product.createdAt).toLocaleDateString() : ''}</span>
                   </div>
                 </div>
+                {/* Approve button for pending products */}
+                {product.status === 'pending_approval' && (
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={e => {
+                      e.stopPropagation();
+                      approveProductMutation.mutate(product.id || product._id);
+                    }}
+                  >
+                    Approve
+                  </Button>
+                )}
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="ml-2"
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (window.confirm('Are you sure you want to delete this product?')) {
+                      deleteProductMutation.mutate(product._id || product.id);
+                    }
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
                 <div className="flex items-center gap-2">
                   <Button variant="ghost" size="sm">
                     <Eye className="w-4 h-4" />

@@ -1242,6 +1242,23 @@ class ApiService {
     });
     return handleResponse(response);
   }
+
+  // Contact a user (admin to user email)
+  async contactUser(userId: string, subject: string, message: string): Promise<{ success: boolean; message: string }> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+    const response = await fetch(`${this.baseURL}/admin/communication/contact-user`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId, subject, message }),
+    });
+    return handleResponse(response);
+  }
 }
 
 // Create and export the API service instance

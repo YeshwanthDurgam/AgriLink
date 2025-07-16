@@ -3,6 +3,8 @@ const router = express.Router();
 const Announcement = require('../../models/Announcement');
 const AdminAction = require('../../models/AdminAction');
 const roleCheck = require('../../middlewares/roleCheck');
+const User = require('../../models/User');
+const { sendPasswordResetEmail, sendPasswordResetSuccessEmail } = require('../../utils/email');
 
 // Placeholder for communication routes
 // Will be implemented in Phase 4
@@ -288,6 +290,50 @@ router.get('/notifications', roleCheck('super_admin', 'admin'), async (req, res)
       message: 'Error fetching notifications',
       error: error.message
     });
+  }
+});
+
+// Send a custom email to a user (admin contact)
+router.post('/contact-user', roleCheck('super_admin', 'communication_manager'), async (req, res) => {
+  try {
+    const { userId, subject, message } = req.body;
+    if (!userId || !subject || !message) {
+      return res.status(400).json({ success: false, message: 'userId, subject, and message are required' });
+    }
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    // Use nodemailer directly for custom email
+    const transporter = require('nodemailer').createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject,
+      html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #4CAF50, #45a049); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="margin: 0; font-size: 24px;">AgriLink Admin Message</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+          <h2 style="color: #333; margin-bottom: 20px;">Hello ${user.name},</h2>
+          <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">${message}</p>
+          <div style="margin-top: 30px; text-align: center; color: #999; font-size: 12px;">
+            <p>© 2024 AgriLink. All rights reserved.</p>
+          </div>
+        </div>
+      </div>`
+    };
+    await transporter.sendMail(mailOptions);
+    res.json({ success: true, message: 'Email sent successfully' });
+  } catch (error) {
+    console.error('Error sending contact email:', error);
+    res.status(500).json({ success: false, message: 'Failed to send email', error: error.message });
   }
 });
 

@@ -149,7 +149,7 @@ router.delete('/:id/images/:imageId',
 
 // Admin routes (only admins can access)
 router.patch('/:id/status', 
-  roleCheck('admin'),
+  roleCheck('admin', 'super_admin'),
   updateProductStatusValidation, 
   handleValidationErrors, 
   productController.updateProductStatus

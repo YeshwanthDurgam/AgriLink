@@ -5,6 +5,7 @@ const Product = require('../../models/Product');
 const Order = require('../../models/Order');
 const AdminAction = require('../../models/AdminAction');
 const roleCheck = require('../../middlewares/roleCheck');
+const nodemailer = require('nodemailer');
 
 // Get all farmers with filtering and pagination
 router.get('/', roleCheck('super_admin', 'farmer_support'), async (req, res) => {
@@ -141,6 +142,37 @@ router.post('/:id/approve', roleCheck('super_admin', 'farmer_support'), async (r
     farmer.isVerified = true;
     await farmer.save();
 
+    // Send verification email
+    try {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS
+        }
+      });
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: farmer.email,
+        subject: 'Your AgriLink Account is Verified!',
+        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #4CAF50, #45a049); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="margin: 0; font-size: 24px;">AgriLink</h1>
+            <p style="margin: 10px 0 0 0; font-size: 16px;">Congratulations, ${farmer.name}!</p>
+          </div>
+          <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+            <h2 style="color: #333; margin-bottom: 20px;">Your account has been verified.</h2>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">You can now access all features and start selling your produce on AgriLink.</p>
+            <div style="margin-top: 30px; text-align: center; color: #999; font-size: 12px;">
+              <p>© 2024 AgriLink. All rights reserved.</p>
+            </div>
+          </div>
+        </div>`
+      });
+    } catch (emailErr) {
+      console.error('Failed to send verification email:', emailErr);
+    }
+
     // Log admin action
     await AdminAction.logAction({
       admin: req.user.id,
@@ -224,7 +256,7 @@ router.post('/:id/reject', roleCheck('super_admin', 'farmer_support'), async (re
 });
 
 // Suspend farmer account
-router.post('/:id/suspend', roleCheck('super_admin'), async (req, res) => {
+router.post('/:id/suspend', roleCheck('super_admin', 'admin'), async (req, res) => {
   try {
     const { reason, duration } = req.body;
     const farmer = await User.findById(req.params.id);
@@ -245,6 +277,37 @@ router.post('/:id/suspend', roleCheck('super_admin'), async (req, res) => {
       { farmer: req.params.id, status: 'active' },
       { status: 'suspended' }
     );
+
+    // Send suspension email
+    try {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS
+        }
+      });
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: farmer.email,
+        subject: 'Your AgriLink Account Has Been Suspended',
+        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #e53935, #e35d5b); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="margin: 0; font-size: 24px;">AgriLink</h1>
+            <p style="margin: 10px 0 0 0; font-size: 16px;">Account Suspended</p>
+          </div>
+          <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+            <h2 style="color: #333; margin-bottom: 20px;">Dear ${farmer.name},</h2>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">Your account has been suspended. Please contact AgriLink support or your admin for more information.</p>
+            <div style="margin-top: 30px; text-align: center; color: #999; font-size: 12px;">
+              <p>© 2024 AgriLink. All rights reserved.</p>
+            </div>
+          </div>
+        </div>`
+      });
+    } catch (emailErr) {
+      console.error('Failed to send suspension email:', emailErr);
+    }
 
     // Log admin action
     await AdminAction.logAction({
@@ -279,7 +342,7 @@ router.post('/:id/suspend', roleCheck('super_admin'), async (req, res) => {
 });
 
 // Reactivate farmer account
-router.post('/:id/reactivate', roleCheck('super_admin'), async (req, res) => {
+router.post('/:id/reactivate', roleCheck('super_admin', 'admin'), async (req, res) => {
   try {
     const farmer = await User.findById(req.params.id);
 
@@ -300,9 +363,40 @@ router.post('/:id/reactivate', roleCheck('super_admin'), async (req, res) => {
       { status: 'active' }
     );
 
+    // Send activation email
+    try {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS
+        }
+      });
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: farmer.email,
+        subject: 'Your AgriLink Account Has Been Activated',
+        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #4CAF50, #45a049); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="margin: 0; font-size: 24px;">AgriLink</h1>
+            <p style="margin: 10px 0 0 0; font-size: 16px;">Account Activated</p>
+          </div>
+          <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+            <h2 style="color: #333; margin-bottom: 20px;">Dear ${farmer.name},</h2>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">Your account has been activated. You can now access all features and continue selling your produce on AgriLink.</p>
+            <div style="margin-top: 30px; text-align: center; color: #999; font-size: 12px;">
+              <p>© 2024 AgriLink. All rights reserved.</p>
+            </div>
+          </div>
+        </div>`
+      });
+    } catch (emailErr) {
+      console.error('Failed to send activation email:', emailErr);
+    }
+
     res.json({
       success: true,
-      message: 'Farmer reactivated successfully',
+      message: 'Farmer activated successfully',
       data: {
         farmerId: farmer._id,
         accountStatus: farmer.accountStatus

@@ -58,6 +58,10 @@ const AdminUserManagement = () => {
   const [editUserType, setEditUserType] = useState<'farmer' | 'buyer' | null>(null);
   const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', location: '' });
   const [editLoading, setEditLoading] = useState(false);
+  const [contactUser, setContactUser] = useState<User | null>(null);
+  const [contactSubject, setContactSubject] = useState('');
+  const [contactMessage, setContactMessage] = useState('');
+  const [contactLoading, setContactLoading] = useState(false);
 
   // Fetch farmers
   useEffect(() => {
@@ -111,29 +115,44 @@ const AdminUserManagement = () => {
 
   const handleUserAction = async (userId: string, action: 'suspend' | 'activate' | 'verify', userType: 'farmer' | 'buyer') => {
     try {
-      const endpoint = userType === 'farmer' 
-        ? `/admin/farmers/${userId}/${action}`
-        : `/admin/customers/${userId}/${action}`;
-      
-      await apiService.post(endpoint);
-      
-      // Update local state
-      const updateUser = (users: User[]) => 
-        users.map(user => 
-          user._id === userId 
-            ? { 
-                ...user, 
-                status: (action === 'suspend' ? 'suspended' : 'active') as 'active' | 'suspended' | 'pending',
-                isVerified: action === 'verify' ? true : user.isVerified
-              }
-            : user
-        );
+      let endpoint = '';
+      let updateUser;
       if (userType === 'farmer') {
+        if (action === 'verify') {
+          endpoint = `/admin/farmers/${userId}/approve`;
+        } else if (action === 'activate') {
+          endpoint = `/admin/farmers/${userId}/reactivate`;
+        } else if (action === 'suspend') {
+          endpoint = `/admin/farmers/${userId}/suspend`;
+        }
+        await apiService.post(endpoint);
+        updateUser = (users: User[]) =>
+          users.map(user =>
+            user._id === userId
+              ? {
+                  ...user,
+                  status: action === 'suspend' ? 'suspended' : 'active',
+                  isVerified: action === 'verify' ? true : user.isVerified
+                }
+              : user
+          );
         setFarmers(updateUser);
       } else {
+        // For buyers, keep existing logic (if any)
+        endpoint = `/admin/customers/${userId}/${action}`;
+        await apiService.post(endpoint);
+        updateUser = (users: User[]) =>
+          users.map(user =>
+            user._id === userId
+              ? {
+                  ...user,
+                  status: action === 'suspend' ? 'suspended' : 'active',
+                  isVerified: action === 'verify' ? true : user.isVerified
+                }
+              : user
+          );
         setBuyers(updateUser);
       }
-      
       toast.success(`User ${action}d successfully`);
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -193,6 +212,38 @@ const AdminUserManagement = () => {
       }
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  const openContactModal = (user: User) => {
+    setContactUser(user);
+    setContactSubject('');
+    setContactMessage('');
+    setContactLoading(false);
+  };
+
+  const closeContactModal = () => {
+    setContactUser(null);
+    setContactSubject('');
+    setContactMessage('');
+    setContactLoading(false);
+  };
+
+  const handleContactSend = async () => {
+    if (!contactUser) return;
+    if (!contactSubject.trim() || !contactMessage.trim()) {
+      toast.error('Subject and message are required');
+      return;
+    }
+    setContactLoading(true);
+    try {
+      await apiService.contactUser(contactUser._id, contactSubject, contactMessage);
+      toast.success('Message sent successfully');
+      closeContactModal();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send message');
+    } finally {
+      setContactLoading(false);
     }
   };
 
@@ -322,7 +373,7 @@ const AdminUserManagement = () => {
             Verify
           </Button>
         )}
-        <Button size="sm" variant="outline">
+        <Button size="sm" variant="outline" onClick={() => openContactModal(user)}>
           <Mail className="w-4 h-4 mr-1" />
           Contact
         </Button>
@@ -509,6 +560,44 @@ const AdminUserManagement = () => {
           <DialogFooter>
             <Button variant="outline" onClick={closeEditModal} disabled={editLoading}>Cancel</Button>
             <Button onClick={handleEditSave} disabled={editLoading}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Contact Modal */}
+      <Dialog open={!!contactUser} onOpenChange={closeContactModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Contact User</DialogTitle>
+            <DialogDescription>Send a message to {contactUser?.name} ({contactUser?.email})</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium">Subject</label>
+              <input
+                type="text"
+                value={contactSubject}
+                onChange={e => setContactSubject(e.target.value)}
+                className="w-full border rounded px-3 py-2"
+                placeholder="Enter subject"
+                disabled={contactLoading}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Message</label>
+              <textarea
+                value={contactMessage}
+                onChange={e => setContactMessage(e.target.value)}
+                className="w-full border rounded px-3 py-2"
+                rows={5}
+                placeholder="Enter your message"
+                disabled={contactLoading}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeContactModal} disabled={contactLoading}>Cancel</Button>
+            <Button onClick={handleContactSend} disabled={contactLoading}>Send</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -334,6 +334,18 @@ const productSchema = new mongoose.Schema({
     default: 'none'
   },
 
+  // Product ownership and representation
+  creator: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  representative: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+
   // Timestamps
   createdAt: {
     type: Date,

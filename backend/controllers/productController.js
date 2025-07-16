@@ -51,6 +51,8 @@ const createProduct = async (req, res) => {
     }
 
     let farmer;
+    let creatorId = req.user._id;
+    let representativeId;
     // If admin, allow specifying farmer in body
     if (req.user.role === 'admin') {
       if (!farmerFromBody) {
@@ -66,6 +68,7 @@ const createProduct = async (req, res) => {
           message: 'Specified farmer does not exist or is not a farmer'
         });
       }
+      representativeId = farmer._id;
     } else if (req.user.role === 'farmer') {
       farmer = await User.findById(req.user.id);
       if (!farmer) {
@@ -74,6 +77,7 @@ const createProduct = async (req, res) => {
           message: 'Farmer not found'
         });
       }
+      representativeId = farmer._id;
     } else {
       return res.status(403).json({
         success: false,
@@ -109,8 +113,10 @@ const createProduct = async (req, res) => {
       isSeasonal: isSeasonal || false,
       tags: tags || [],
       searchKeywords: searchKeywords || [],
-      status: 'pending_approval',
-      approvalStatus: { status: 'pending' }
+      status: req.user.role === 'admin' ? 'active' : 'pending_approval',
+      approvalStatus: req.user.role === 'admin' ? { status: 'approved' } : { status: 'pending' },
+      creator: creatorId,
+      representative: representativeId
     });
 
     await product.save();
