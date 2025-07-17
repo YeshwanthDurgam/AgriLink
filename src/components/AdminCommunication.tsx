@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { 
   MessageSquare, 
   Bell, 
@@ -52,6 +53,7 @@ const AdminCommunication = () => {
   const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
+  const [activeTab, setActiveTab] = useState('announcements');
 
   // Form state for new announcement
   const [formData, setFormData] = useState({
@@ -92,7 +94,17 @@ const AdminCommunication = () => {
 
   const handleCreateAnnouncement = async () => {
     try {
-      await apiService.post('/admin/communication/announcements', formData);
+      const payload = {
+        ...formData,
+        targetCategories: [],
+        visibility: 'public',
+        tags: [],
+        schedule: {
+          ...formData.schedule,
+          publishAt: new Date(formData.schedule.publishAt).toISOString(),
+        }
+      };
+      await apiService.post('/admin/communication/announcements', payload);
       toast.success('Announcement created successfully!');
       setIsCreateDialogOpen(false);
       setFormData({
@@ -226,198 +238,252 @@ const AdminCommunication = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-xl font-semibold">Communication Management</h2>
-          <p className="text-gray-600">Manage announcements and system notifications</p>
+          <p className="text-gray-600">Manage announcements, direct messages, and notifications</p>
         </div>
-        
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              New Announcement
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Create New Announcement</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Enter announcement title"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="content">Content</Label>
-                <Textarea
-                  id="content"
-                  value={formData.content}
-                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                  placeholder="Enter announcement content"
-                  rows={4}
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="type">Type</Label>
-                  <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="general">General</SelectItem>
-                      <SelectItem value="price_update">Price Update</SelectItem>
-                      <SelectItem value="crop_ban">Crop Ban</SelectItem>
-                      <SelectItem value="harvest_schedule">Harvest Schedule</SelectItem>
-                      <SelectItem value="weather_alert">Weather Alert</SelectItem>
-                      <SelectItem value="system_maintenance">System Maintenance</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label htmlFor="priority">Priority</Label>
-                  <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="publishAt">Publish Date</Label>
-                <Input
-                  id="publishAt"
-                  type="datetime-local"
-                  value={formData.schedule.publishAt}
-                  onChange={(e) => setFormData({ 
-                    ...formData, 
-                    schedule: { ...formData.schedule, publishAt: e.target.value }
-                  })}
-                />
-              </div>
-              
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleCreateAnnouncement}>
-                  <Send className="w-4 h-4 mr-2" />
-                  Create Announcement
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
-
-      {/* Announcements List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5" />
-            Announcements ({announcements.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {announcements.map((announcement) => (
-              <div key={announcement._id} className="border rounded-lg p-4">
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-semibold">{announcement.title}</h3>
-                      <Badge className={getPriorityColor(announcement.priority)}>
-                        {announcement.priority}
-                      </Badge>
-                      <Badge className={getStatusColor(announcement.status)}>
-                        {announcement.status}
-                      </Badge>
+      <Tabs defaultValue="announcements" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-4 mb-4">
+          <TabsTrigger value="announcements">Announcements</TabsTrigger>
+          <TabsTrigger value="direct">Direct Messaging</TabsTrigger>
+          <TabsTrigger value="notifications">System Notifications</TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
+        </TabsList>
+        <TabsContent value="announcements">
+          {/* Existing Announcements UI */}
+          <div className="flex justify-end mb-4">
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  New Announcement
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Create New Announcement</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="title">Title</Label>
+                    <Input
+                      id="title"
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      placeholder="Enter announcement title"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="content">Content</Label>
+                    <Textarea
+                      id="content"
+                      value={formData.content}
+                      onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                      placeholder="Enter announcement content"
+                      rows={4}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="type">Type</Label>
+                      <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="general">General</SelectItem>
+                          <SelectItem value="price_update">Price Update</SelectItem>
+                          <SelectItem value="crop_ban">Crop Ban</SelectItem>
+                          <SelectItem value="harvest_schedule">Harvest Schedule</SelectItem>
+                          <SelectItem value="weather_alert">Weather Alert</SelectItem>
+                          <SelectItem value="system_maintenance">System Maintenance</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     
-                    <p className="text-gray-600 text-sm mb-2">{announcement.content}</p>
-                    
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3" />
-                        {announcement.targetAudience.join(', ')}
-                      </span>
-                      {announcement.targetRegions.length > 0 && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {announcement.targetRegions.join(', ')}
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {new Date(announcement.schedule.publishAt).toLocaleDateString()}
-                      </span>
+                    <div>
+                      <Label htmlFor="priority">Priority</Label>
+                      <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="urgent">Urgent</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm">
-                      <Eye className="w-4 h-4" />
+                  <div>
+                    <Label htmlFor="publishAt">Publish Date</Label>
+                    <Input
+                      id="publishAt"
+                      type="datetime-local"
+                      value={formData.schedule.publishAt}
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        schedule: { ...formData.schedule, publishAt: e.target.value }
+                      })}
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                      Cancel
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => openEditDialog(announcement)}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    {announcement.status === 'draft' && (
-                      <Button 
-                        size="sm"
-                        onClick={() => handleApproveAnnouncement(announcement._id)}
-                      >
-                        <Send className="w-4 h-4" />
-                      </Button>
-                    )}
-                    <Button 
-                      variant="destructive" 
-                      size="sm"
-                      onClick={() => handleDeleteAnnouncement(announcement._id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
+                    <Button onClick={handleCreateAnnouncement}>
+                      <Send className="w-4 h-4 mr-2" />
+                      Create Announcement
                     </Button>
                   </div>
                 </div>
-                
-                {/* Delivery Stats */}
-                <div className="flex items-center gap-4 text-xs text-gray-500 border-t pt-2">
-                  <span>Recipients: {announcement.deliveryStats.totalRecipients}</span>
-                  <span>Delivered: {announcement.deliveryStats.delivered}</span>
-                  <span>Opened: {announcement.deliveryStats.opened}</span>
-                </div>
-              </div>
-            ))}
-            
-            {announcements.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p>No announcements found</p>
-              </div>
-            )}
+              </DialogContent>
+            </Dialog>
           </div>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5" />
+                Announcements ({announcements.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {announcements.map((announcement) => (
+                  <div key={announcement._id} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-semibold">{announcement.title}</h3>
+                          <Badge className={getPriorityColor(announcement.priority)}>
+                            {announcement.priority}
+                          </Badge>
+                          <Badge className={getStatusColor(announcement.status)}>
+                            {announcement.status}
+                          </Badge>
+                        </div>
+                        
+                        <p className="text-gray-600 text-sm mb-2">{announcement.content}</p>
+                        
+                        <div className="flex items-center gap-4 text-xs text-gray-500">
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            {announcement.targetAudience.join(', ')}
+                          </span>
+                          {announcement.targetRegions.length > 0 && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {announcement.targetRegions.join(', ')}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(announcement.schedule.publishAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm">
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => openEditDialog(announcement)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        {announcement.status === 'draft' && (
+                          <Button 
+                            size="sm"
+                            onClick={() => handleApproveAnnouncement(announcement._id)}
+                          >
+                            <Send className="w-4 h-4" />
+                          </Button>
+                        )}
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={() => handleDeleteAnnouncement(announcement._id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {/* Delivery Stats */}
+                    <div className="flex items-center gap-4 text-xs text-gray-500 border-t pt-2">
+                      <span>Recipients: {announcement.deliveryStats.totalRecipients}</span>
+                      <span>Delivered: {announcement.deliveryStats.delivered}</span>
+                      <span>Opened: {announcement.deliveryStats.opened}</span>
+                    </div>
+                  </div>
+                ))}
+                
+                {announcements.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p>No announcements found</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="direct">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Send className="w-5 h-5" />
+                Direct Messaging
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-gray-500 py-8 text-center">
+                Coming soon: Search for any user, farmer, or buyer and send direct messages (email, SMS, or in-app).
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="notifications">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="w-5 h-5" />
+                System Notifications
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-gray-500 py-8 text-center">
+                Coming soon: View and send system-wide notifications to users.
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="templates">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Edit className="w-5 h-5" />
+                Templates
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-gray-500 py-8 text-center">
+                Coming soon: Manage reusable message templates for announcements and alerts.
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Edit Dialog */}
       <Dialog open={!!editingAnnouncement} onOpenChange={() => setEditingAnnouncement(null)}>

@@ -195,4 +195,20 @@ router.get('/stats/region', async (req, res) => {
   }
 });
 
+// Admin order stats endpoint
+router.get('/stats', async (req, res) => {
+  try {
+    const total = await Order.countDocuments();
+    const delivered = await Order.countDocuments({ orderStatus: 'delivered' });
+    const disputes = await Order.countDocuments({ 'disputes.status': 'open' });
+    const revenueAgg = await Order.aggregate([
+      { $group: { _id: null, total: { $sum: '$total' } } }
+    ]);
+    const totalRevenue = revenueAgg[0]?.total || 0;
+    res.json({ success: true, data: { total, delivered, disputes, totalRevenue } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error fetching stats', error: error.message });
+  }
+});
+
 module.exports = router; 

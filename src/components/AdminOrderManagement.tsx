@@ -1,108 +1,74 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Package, 
-  TrendingUp, 
-  AlertTriangle, 
-  Search, 
-  Filter, 
-  MoreHorizontal,
-  Eye,
-  Truck,
-  CheckCircle,
-  XCircle,
-  Clock,
-  IndianRupee,
-  MapPin,
-  User,
-  Calendar,
-  Shield
-} from 'lucide-react';
-import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Package, Clock, CheckCircle, AlertTriangle, Mail } from 'lucide-react';
+import { IndianRupee } from 'lucide-react';
 import { apiService } from '@/lib/api';
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { toast } from 'sonner';
+
+interface Dispute {
+  _id?: string;
+  status: string;
+  reason?: string;
+  description?: string;
+  evidence?: string;
+  resolution?: {
+    action: string;
+    amount?: number;
+    notes: string;
+    resolvedBy?: { _id: string; name: string };
+    resolvedAt: string;
+  };
+}
 
 interface Order {
   _id: string;
-  orderId: string;
-  buyer: {
-    _id: string;
-    name: string;
-    email: string;
-    phone: string;
-  };
-  farmer: {
-    _id: string;
-    name: string;
-    email: string;
-    phone: string;
-  };
-  items: Array<{
-    product: {
-      _id: string;
-      name: string;
-      price: number;
-      unit: string;
-    };
-    quantity: number;
-    totalPrice: number;
-  }>;
-  totalAmount: number;
-  status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'disputed';
-  paymentStatus: 'pending' | 'completed' | 'failed' | 'refunded';
-  deliveryAddress: {
-    fullName: string;
-    address: string;
-    city: string;
-    state: string;
-    pincode: string;
-  };
-  deliveryPartner?: {
-    _id: string;
-    name: string;
-    phone: string;
-  };
+  orderNumber: string;
+  buyer: { _id?: string; name: string; email?: string };
+  orderStatus: string;
+  paymentStatus: string;
+  total: number;
   createdAt: string;
-  updatedAt: string;
-  estimatedDelivery?: string;
-  actualDelivery?: string;
-  dispute?: {
-    reason: string;
-    description: string;
-    status: 'open' | 'resolved' | 'closed';
-    createdAt: string;
-  };
+  dispute?: Dispute;
+  disputes?: Dispute[];
+  farmerOrders?: {
+    _id: string;
+    farmer: { _id?: string; name: string; email?: string };
+  }[];
+  [key: string]: any;
 }
+
+const STAT_LABELS = [
+  { key: 'total', label: 'Total Orders', icon: <Package className="w-7 h-7 text-blue-600 mx-auto mb-1" /> },
+  { key: 'pending', label: 'Pending Orders', icon: <Clock className="w-7 h-7 text-yellow-600 mx-auto mb-1" /> },
+  { key: 'completed', label: 'Completed Orders', icon: <CheckCircle className="w-7 h-7 text-green-600 mx-auto mb-1" /> },
+  { key: 'dispute', label: 'Dispute Orders', icon: <AlertTriangle className="w-7 h-7 text-orange-600 mx-auto mb-1" /> },
+];
+
+const PAGE_LIMIT = 10;
 
 const AdminOrderManagement = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | Order['status']>('all');
-  const [paymentFilter, setPaymentFilter] = useState<'all' | Order['paymentStatus']>('all');
-  const [editOrder, setEditOrder] = useState<Order | null>(null);
-  const [editForm, setEditForm] = useState({
-    deliveryAddress: { fullName: '', address: '', city: '', state: '', pincode: '' },
-    estimatedDelivery: '',
-    status: '' as Order['status'],
-    paymentStatus: '' as Order['paymentStatus'],
-  });
-  const [editLoading, setEditLoading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [disputeActionLoading, setDisputeActionLoading] = useState(false);
+  const [disputeNote, setDisputeNote] = useState('');
+  const [messageModal, setMessageModal] = useState<{ open: boolean; userId: string; userName: string; email: string } | null>(null);
+  const [messageSubject, setMessageSubject] = useState('');
+  const [messageBody, setMessageBody] = useState('');
+  const [messageLoading, setMessageLoading] = useState(false);
 
-  // Fetch orders
   useEffect(() => {
     const fetchOrders = async () => {
       setLoading(true);
       setError('');
       try {
-        const res = await apiService.get('/admin/orders?page=1&limit=50');
+        const res = await apiService.get(`/admin/orders?page=1&limit=1000`);
         if (res.success) {
-          setOrders(res.data.docs || []);
+          setOrders(Array.isArray(res.data) ? res.data : res.data.docs || []);
         } else {
           setError(res.message || 'Failed to fetch orders');
         }
@@ -115,322 +81,87 @@ const AdminOrderManagement = () => {
     fetchOrders();
   }, []);
 
-  const handleOrderAction = async (orderId: string, action: 'confirm' | 'ship' | 'deliver' | 'cancel' | 'assign-delivery') => {
+  // Stats calculation
+  const totalOrders = orders.length;
+  const pendingOrders = orders.filter(o => o.orderStatus === 'pending').length;
+  const completedOrders = orders.filter(o => o.orderStatus === 'delivered' || o.orderStatus === 'completed').length;
+  const disputeOrders = orders.filter(o => o.disputes && o.disputes.some((d: any) => d.status === 'open')).length;
+  const totalRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+
+  const stats = [
+    { ...STAT_LABELS[0], value: loading ? '...' : totalOrders },
+    { ...STAT_LABELS[1], value: loading ? '...' : pendingOrders },
+    { ...STAT_LABELS[2], value: loading ? '...' : completedOrders },
+    { ...STAT_LABELS[3], value: loading ? '...' : disputeOrders },
+    { key: 'revenue', label: 'Total Revenue', icon: <IndianRupee className="w-7 h-7 text-purple-600 mx-auto mb-1" />, value: loading ? '...' : `₹${totalRevenue.toLocaleString()}` },
+  ];
+
+  // Main list: first 10 orders
+  const mainOrders = orders.slice(0, PAGE_LIMIT);
+  // History: all orders (compact)
+  const historyOrders = orders;
+
+  // Dispute resolution handler
+  const handleDisputeAction = async (orderId: string, disputeId: string, action: 'resolve' | 'reject') => {
+    setDisputeActionLoading(true);
     try {
-      const endpoint = `/admin/orders/${orderId}/${action}`;
-      await apiService.post(endpoint);
-      
-      // Update local state
-      setOrders(prev => prev.map(order => {
-        if (order._id === orderId) {
-          let newStatus = order.status;
-          if (action === 'confirm') newStatus = 'confirmed';
-          if (action === 'ship') newStatus = 'shipped';
-          if (action === 'deliver') newStatus = 'delivered';
-          if (action === 'cancel') newStatus = 'cancelled';
-          
-          return { ...order, status: newStatus };
-        }
-        return order;
-      }));
-      
-      toast.success(`Order ${action}ed successfully`);
-    } catch (err: any) {
-      toast.error(err.message || 'Action failed');
-    }
-  };
-
-  const handleDisputeAction = async (orderId: string, action: 'resolve' | 'close') => {
-    try {
-      const endpoint = `/admin/orders/${orderId}/dispute/${action}`;
-      await apiService.post(endpoint);
-      
-      // Update local state
-      setOrders(prev => prev.map(order => {
-        if (order._id === orderId && order.dispute) {
-          return {
-            ...order,
-            dispute: { ...order.dispute, status: action === 'resolve' ? 'resolved' : 'closed' }
-          };
-        }
-        return order;
-      }));
-      
-      toast.success(`Dispute ${action}d successfully`);
-    } catch (err: any) {
-      toast.error(err.message || 'Action failed');
-    }
-  };
-
-  const openEditModal = (order: Order) => {
-    setEditOrder(order);
-    setEditForm({
-      deliveryAddress: { ...order.deliveryAddress },
-      estimatedDelivery: order.estimatedDelivery || '',
-      status: order.status,
-      paymentStatus: order.paymentStatus,
-    });
-  };
-
-  const closeEditModal = () => {
-    setEditOrder(null);
-    setEditForm({
-      deliveryAddress: { fullName: '', address: '', city: '', state: '', pincode: '' },
-      estimatedDelivery: '',
-      status: '' as Order['status'],
-      paymentStatus: '' as Order['paymentStatus'],
-    });
-    setEditLoading(false);
-  };
-
-  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    if (name.startsWith('deliveryAddress.')) {
-      const field = name.split('.')[1];
-      setEditForm(prev => ({ ...prev, deliveryAddress: { ...prev.deliveryAddress, [field]: value } }));
-    } else {
-      setEditForm(prev => ({ ...prev, [name]: value }));
-    }
-  };
-
-  const handleEditSave = async () => {
-    if (!editOrder) return;
-    setEditLoading(true);
-    try {
-      const endpoint = `/admin/orders/${editOrder._id}`;
-      const res = await apiService.put(endpoint, editForm);
+      const res = await apiService.post(`/admin/orders/${orderId}/dispute/${disputeId}/resolve`, {
+        action,
+        notes: disputeNote,
+      });
       if (res.success) {
-        toast.success('Order updated successfully');
-        setOrders(orders => orders.map(o => o._id === editOrder._id ? { ...o, ...editForm, deliveryAddress: { ...editForm.deliveryAddress } } : o));
-        closeEditModal();
+        toast.success('Dispute updated successfully');
+        // Update the selectedOrder in state
+        setSelectedOrder((prev) => {
+          if (!prev) return prev;
+          // Update the dispute status in the selected order
+          let updated = { ...prev };
+          if (updated.dispute && updated.dispute._id === disputeId) {
+            updated.dispute.status = 'resolved';
+          }
+          if (updated.disputes) {
+            updated.disputes = updated.disputes.map(d => d._id === disputeId ? { ...d, status: 'resolved' } : d);
+          }
+          return updated;
+        });
+        setDisputeNote('');
       } else {
-        toast.error(res.message || 'Failed to update order');
+        toast.error(res.message || 'Failed to update dispute');
       }
     } catch (err: any) {
-      toast.error(err.message || 'Failed to update order');
+      toast.error(err.message || 'Failed to update dispute');
     } finally {
-      setEditLoading(false);
+      setDisputeActionLoading(false);
     }
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.buyer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.farmer.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    const matchesPayment = paymentFilter === 'all' || order.paymentStatus === paymentFilter;
-    return matchesSearch && matchesStatus && matchesPayment;
-  });
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'confirmed': return 'bg-blue-100 text-blue-800';
-      case 'processing': return 'bg-purple-100 text-purple-800';
-      case 'shipped': return 'bg-indigo-100 text-indigo-800';
-      case 'delivered': return 'bg-green-100 text-green-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      case 'disputed': return 'bg-orange-100 text-orange-800';
-      default: return 'bg-gray-100 text-gray-800';
+  // Send message handler
+  const handleSendMessage = async () => {
+    if (!messageModal) return;
+    if (!messageSubject.trim() || !messageBody.trim()) {
+      toast.error('Subject and message are required');
+      return;
     }
-  };
-
-  const getPaymentStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'failed': return 'bg-red-100 text-red-800';
-      case 'refunded': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+    setMessageLoading(true);
+    try {
+      const res = await apiService.post('/admin/communication/contact-user', {
+        userId: messageModal.userId,
+        subject: messageSubject,
+        message: messageBody,
+      });
+      if (res.success) {
+        toast.success('Message sent successfully');
+        setMessageModal(null);
+        setMessageSubject('');
+        setMessageBody('');
+      } else {
+        toast.error(res.message || 'Failed to send message');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send message');
+    } finally {
+      setMessageLoading(false);
     }
-  };
-
-  const OrderCard = ({ order }: { order: Order }) => (
-    <div className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <h3 className="font-semibold">#{order.orderId}</h3>
-            <Badge className={getStatusColor(order.status)}>
-              {order.status}
-            </Badge>
-            <Badge className={getPaymentStatusColor(order.paymentStatus)}>
-              {order.paymentStatus}
-            </Badge>
-            {order.dispute && (
-              <Badge className="bg-red-100 text-red-800">
-                Disputed
-              </Badge>
-            )}
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-            <div>
-              <p className="text-sm font-medium mb-1">Buyer</p>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <User className="w-4 h-4" />
-                {order.buyer.name}
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-medium mb-1">Farmer</p>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <User className="w-4 h-4" />
-                {order.farmer.name}
-              </div>
-            </div>
-          </div>
-
-          <div className="mb-3">
-            <p className="text-sm font-medium mb-1">Items</p>
-            <div className="space-y-1">
-              {order.items.map((item, index) => (
-                <div key={index} className="flex justify-between text-sm">
-                  <span>{item.product.name} x {item.quantity} {item.product.unit}</span>
-                  <span>₹{item.totalPrice}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 mb-3">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <IndianRupee className="w-4 h-4" />
-              <span className="font-medium">₹{order.totalAmount}</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Calendar className="w-4 h-4" />
-              {new Date(order.createdAt).toLocaleDateString()}
-            </div>
-          </div>
-
-          {order.deliveryAddress && (
-            <div className="mb-3">
-              <p className="text-sm font-medium mb-1">Delivery Address</p>
-              <div className="flex items-start gap-2 text-sm text-gray-600">
-                <MapPin className="w-4 h-4 mt-0.5" />
-                <span>
-                  {order.deliveryAddress.fullName}, {order.deliveryAddress.address}, 
-                  {order.deliveryAddress.city}, {order.deliveryAddress.state} - {order.deliveryAddress.pincode}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {order.dispute && (
-            <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded">
-              <p className="text-sm font-medium text-red-800 mb-1">Dispute</p>
-              <p className="text-sm text-red-700">{order.dispute.reason}</p>
-              <p className="text-xs text-red-600 mt-1">{order.dispute.description}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => openEditModal(order)}>
-            <MoreHorizontal className="w-4 h-4" />
-          </Button>
-          <Button variant="outline" size="sm">
-            <Eye className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex gap-2 flex-wrap">
-        {order.status === 'pending' && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleOrderAction(order._id, 'confirm')}
-            className="text-blue-600 hover:text-blue-700"
-          >
-            <CheckCircle className="w-4 h-4 mr-1" />
-            Confirm
-          </Button>
-        )}
-        
-        {order.status === 'confirmed' && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleOrderAction(order._id, 'ship')}
-            className="text-indigo-600 hover:text-indigo-700"
-          >
-            <Truck className="w-4 h-4 mr-1" />
-            Ship
-          </Button>
-        )}
-        
-        {order.status === 'shipped' && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleOrderAction(order._id, 'deliver')}
-            className="text-green-600 hover:text-green-700"
-          >
-            <CheckCircle className="w-4 h-4 mr-1" />
-            Mark Delivered
-          </Button>
-        )}
-        
-        {['pending', 'confirmed'].includes(order.status) && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleOrderAction(order._id, 'cancel')}
-            className="text-red-600 hover:text-red-700"
-          >
-            <XCircle className="w-4 h-4 mr-1" />
-            Cancel
-          </Button>
-        )}
-        
-        {!order.deliveryPartner && ['confirmed', 'processing'].includes(order.status) && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleOrderAction(order._id, 'assign-delivery')}
-            className="text-purple-600 hover:text-purple-700"
-          >
-            <Truck className="w-4 h-4 mr-1" />
-            Assign Delivery
-          </Button>
-        )}
-        
-        {order.dispute && order.dispute.status === 'open' && (
-          <>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleDisputeAction(order._id, 'resolve')}
-              className="text-green-600 hover:text-green-700"
-            >
-              <Shield className="w-4 h-4 mr-1" />
-              Resolve
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleDisputeAction(order._id, 'close')}
-              className="text-gray-600 hover:text-gray-700"
-            >
-              <XCircle className="w-4 h-4 mr-1" />
-              Close
-            </Button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-
-  const stats = {
-    total: orders.length,
-    pending: orders.filter(o => o.status === 'pending').length,
-    confirmed: orders.filter(o => o.status === 'confirmed').length,
-    shipped: orders.filter(o => o.status === 'shipped').length,
-    delivered: orders.filter(o => o.status === 'delivered').length,
-    disputed: orders.filter(o => o.dispute && o.dispute.status === 'open').length,
-    totalRevenue: orders.reduce((sum, o) => sum + o.totalAmount, 0)
   };
 
   return (
@@ -439,231 +170,219 @@ const AdminOrderManagement = () => {
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Management</h2>
         <p className="text-gray-600">Monitor orders, manage delivery, and resolve disputes</p>
       </div>
-
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <Package className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-sm text-gray-600">Total Orders</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <TrendingUp className="w-8 h-8 text-green-600 mx-auto mb-2" />
-            <div className="text-2xl font-bold">{stats.delivered}</div>
-            <p className="text-sm text-gray-600">Delivered</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <AlertTriangle className="w-8 h-8 text-orange-600 mx-auto mb-2" />
-            <div className="text-2xl font-bold">{stats.disputed}</div>
-            <p className="text-sm text-gray-600">Disputes</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <IndianRupee className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-            <div className="text-2xl font-bold">₹{stats.totalRevenue.toLocaleString()}</div>
-            <p className="text-sm text-gray-600">Total Revenue</p>
-          </CardContent>
-        </Card>
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        {stats.map(stat => (
+          <Card key={stat.key}>
+            <CardContent className="p-4 text-center">
+              {stat.icon}
+              <div className="text-2xl font-bold">{stat.value}</div>
+              <p className="text-sm text-gray-600">{stat.label}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
-
-      <Tabs defaultValue="all" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="all">All Orders</TabsTrigger>
-          <TabsTrigger value="pending">Pending ({stats.pending})</TabsTrigger>
-          <TabsTrigger value="active">Active ({stats.confirmed + stats.shipped})</TabsTrigger>
-          <TabsTrigger value="disputes">Disputes ({stats.disputed})</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="all" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>All Orders</CardTitle>
-              <div className="flex gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    placeholder="Search orders..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
+      {/* Orders List */}
+      <div className="flex justify-between items-center mt-6 mb-2">
+        <h3 className="text-lg font-semibold">Recent Orders</h3>
+        {orders.length > PAGE_LIMIT && (
+          <Button variant="outline" onClick={() => setShowHistory(true)}>
+            View All Orders
+          </Button>
+        )}
+      </div>
+      <div className="space-y-4">
+        {loading ? (
+          <div className="text-center py-8 text-gray-500">Loading orders...</div>
+        ) : error ? (
+          <div className="text-center py-8 text-red-500">{error}</div>
+        ) : mainOrders.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">No orders found</div>
+        ) : (
+          mainOrders.map(order => (
+            <Card
+              key={order._id}
+              className="cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => setSelectedOrder(order)}
+            >
+              <CardContent className="flex flex-col md:flex-row md:items-center justify-between p-5 min-h-[90px] gap-2">
+                <div className="flex-1">
+                  <div className="font-mono text-base font-semibold">{order.orderNumber || order._id}</div>
+                  <div className="text-gray-700">Buyer: <span className="font-medium">{order.buyer?.name || '-'}</span></div>
+                  <div className="text-gray-500 text-sm">{new Date(order.createdAt).toLocaleString()}</div>
                 </div>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
-                  className="border rounded-md px-3 py-2"
-                >
-                  <option value="all">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="confirmed">Confirmed</option>
-                  <option value="processing">Processing</option>
-                  <option value="shipped">Shipped</option>
-                  <option value="delivered">Delivered</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="disputed">Disputed</option>
-                </select>
-                <select
-                  value={paymentFilter}
-                  onChange={(e) => setPaymentFilter(e.target.value as any)}
-                  className="border rounded-md px-3 py-2"
-                >
-                  <option value="all">All Payments</option>
-                  <option value="pending">Pending</option>
-                  <option value="completed">Completed</option>
-                  <option value="failed">Failed</option>
-                  <option value="refunded">Refunded</option>
-                </select>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="text-center py-8 text-gray-500">Loading orders...</div>
-              ) : error ? (
-                <div className="text-center py-8 text-red-500">{error}</div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredOrders.map((order) => (
-                    <OrderCard key={order._id} order={order} />
-                  ))}
-                  {filteredOrders.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                      <p>No orders found</p>
-                    </div>
-                  )}
+                <div className="flex flex-col items-end gap-1 min-w-[120px]">
+                  {/* Status badges */}
+                  <div className="flex gap-2 mb-1">
+                    <span className={`px-2 py-1 rounded text-xs font-semibold capitalize ${order.orderStatus === 'delivered' || order.orderStatus === 'completed' ? 'bg-green-100 text-green-700' : order.orderStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' : order.orderStatus === 'cancelled' ? 'bg-red-100 text-red-700' : order.orderStatus === 'disputed' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'}`}>{order.orderStatus}</span>
+                    <span className={`px-2 py-1 rounded text-xs font-semibold capitalize ${order.paymentStatus === 'completed' || order.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : order.paymentStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' : order.paymentStatus === 'failed' ? 'bg-red-100 text-red-700' : order.paymentStatus === 'refunded' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{order.paymentStatus}</span>
+                    {order.disputes && order.disputes.some(d => d.status === 'open') && (
+                      <span className="px-2 py-1 rounded text-xs font-semibold bg-orange-200 text-orange-800">Dispute</span>
+                    )}
+                  </div>
+                  <span className="text-base font-bold text-purple-700">₹{order.total?.toLocaleString()}</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+      {/* All Orders History Modal */}
+      <Dialog open={showHistory} onOpenChange={setShowHistory}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>All Orders History</DialogTitle>
+          </DialogHeader>
+          <div className="overflow-y-auto max-h-[60vh]">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Buyer</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyOrders.map(order => (
+                  <tr
+                    key={order._id}
+                    className="hover:bg-gray-50 cursor-pointer"
+                    onClick={() => { setSelectedOrder(order); setShowHistory(false); }}
+                  >
+                    <td className="px-3 py-2 font-mono text-sm">{order.orderNumber || order._id}</td>
+                    <td className="px-3 py-2 text-sm">{order.buyer?.name || '-'}</td>
+                    <td className="px-3 py-2 text-xs capitalize">{order.orderStatus}</td>
+                    <td className="px-3 py-2 text-sm">₹{order.total?.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-xs">{new Date(order.createdAt).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Order Details Modal */}
+      <Dialog open={!!selectedOrder} onOpenChange={v => !v && setSelectedOrder(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Order Details</DialogTitle>
+          </DialogHeader>
+          {selectedOrder && (
+            <div className="space-y-4">
+              <div className="font-mono text-lg font-bold">{selectedOrder.orderNumber || selectedOrder._id}</div>
+              <div>Buyer: <span className="font-medium">{selectedOrder.buyer?.name || '-'}</span></div>
+              <div>Status: <span className="font-semibold capitalize">{selectedOrder.orderStatus}</span></div>
+              <div>Payment: <span className="font-semibold capitalize">{selectedOrder.paymentStatus}</span></div>
+              <div>Total: <span className="font-semibold text-purple-700">₹{selectedOrder.total?.toLocaleString()}</span></div>
+              <div>Date: <span>{new Date(selectedOrder.createdAt).toLocaleString()}</span></div>
+              {/* Dispute Section - show all disputes */}
+              {selectedOrder.disputes && selectedOrder.disputes.length > 0 && (
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="w-5 h-5 text-orange-600" />
+                    <span className="font-semibold text-orange-700">Disputes ({selectedOrder.disputes.length})</span>
+                  </div>
+                  <div className="space-y-3">
+                    {selectedOrder.disputes.map((dispute, idx) => (
+                      <div key={dispute._id || idx} className="border rounded p-3 bg-orange-50">
+                        <div className="flex justify-between items-center">
+                          <div className="font-semibold text-orange-800">Dispute #{idx + 1}</div>
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${dispute.status === 'open' ? 'bg-orange-200 text-orange-800' : 'bg-green-100 text-green-700'}`}>{dispute.status}</span>
+                        </div>
+                        <div className="mt-2 text-sm">
+                          {dispute.reason && <div><span className="font-medium">Reason:</span> {dispute.reason}</div>}
+                          {dispute.description && <div><span className="font-medium">Description:</span> {dispute.description}</div>}
+                          {dispute.evidence && <div><span className="font-medium">Evidence:</span> <span className="italic text-gray-500">[Evidence file/image here]</span></div>}
+                          {dispute.resolution && (
+                            <div className="mt-1 text-xs text-gray-700">
+                              <div><span className="font-semibold">Resolution:</span> {dispute.resolution.action} {dispute.resolution.amount ? `₹${dispute.resolution.amount}` : ''}</div>
+                              <div><span className="font-semibold">Notes:</span> {dispute.resolution.notes}</div>
+                              <div><span className="font-semibold">By:</span> {dispute.resolution.resolvedBy?.name || 'Admin'} on {dispute.resolution.resolvedAt ? new Date(dispute.resolution.resolvedAt).toLocaleString() : ''}</div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-2 mt-3">
+                          {selectedOrder.farmerOrders?.[0]?.farmer?._id && (
+                            <Button size="sm" variant="outline" onClick={() => setMessageModal({ open: true, userId: selectedOrder.farmerOrders[0].farmer._id, userName: selectedOrder.farmerOrders[0].farmer.name || 'Farmer', email: '' })}>
+                              <Mail className="w-4 h-4 mr-1" /> Message Farmer
+                            </Button>
+                          )}
+                          {selectedOrder.buyer?._id && (
+                            <Button size="sm" variant="outline" onClick={() => setMessageModal({ open: true, userId: selectedOrder.buyer._id, userName: selectedOrder.buyer.name || 'Buyer', email: selectedOrder.buyer.email || '' })}>
+                              <Mail className="w-4 h-4 mr-1" /> Message Buyer
+                            </Button>
+                          )}
+                        </div>
+                        <div className="mt-3">
+                          <textarea
+                            className="w-full border rounded px-3 py-2"
+                            rows={2}
+                            placeholder="Add resolution note..."
+                            value={disputeNote}
+                            onChange={e => setDisputeNote(e.target.value)}
+                            disabled={disputeActionLoading}
+                          />
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              disabled={disputeActionLoading}
+                              onClick={() => handleDisputeAction(selectedOrder._id, dispute._id || '', 'resolve')}
+                            >
+                              {disputeActionLoading ? 'Resolving...' : 'Resolve Dispute'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              disabled={disputeActionLoading}
+                              onClick={() => handleDisputeAction(selectedOrder._id, dispute._id || '', 'reject')}
+                            >
+                              {disputeActionLoading ? 'Rejecting...' : 'Reject Dispute'}
+                            </Button>
+                          </div>
+                        </div>
+                        {/* Admin notes/history placeholder */}
+                        <div className="mt-2 text-xs text-gray-500">Admin notes and resolution history will appear here.</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="pending" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Pending Orders</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {orders.filter(o => o.status === 'pending').map((order) => (
-                  <OrderCard key={order._id} order={order} />
-                ))}
-                {orders.filter(o => o.status === 'pending').length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                    <p>No pending orders</p>
+              {/* Message Modal */}
+              <Dialog open={!!messageModal} onOpenChange={v => !v && setMessageModal(null)}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Send Message to {messageModal?.userName}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <input
+                      className="w-full border rounded px-3 py-2"
+                      placeholder="Subject"
+                      value={messageSubject}
+                      onChange={e => setMessageSubject(e.target.value)}
+                      disabled={messageLoading}
+                    />
+                    <textarea
+                      className="w-full border rounded px-3 py-2"
+                      rows={4}
+                      placeholder="Type your message..."
+                      value={messageBody}
+                      onChange={e => setMessageBody(e.target.value)}
+                      disabled={messageLoading}
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="outline" onClick={() => setMessageModal(null)} disabled={messageLoading}>Cancel</Button>
+                      <Button onClick={handleSendMessage} disabled={messageLoading}>
+                        {messageLoading ? 'Sending...' : 'Send'}
+                      </Button>
+                    </div>
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="active" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Active Orders</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {orders.filter(o => ['confirmed', 'processing', 'shipped'].includes(o.status)).map((order) => (
-                  <OrderCard key={order._id} order={order} />
-                ))}
-                {orders.filter(o => ['confirmed', 'processing', 'shipped'].includes(o.status)).length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                    <p>No active orders</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="disputes" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Disputed Orders</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {orders.filter(o => o.dispute && o.dispute.status === 'open').map((order) => (
-                  <OrderCard key={order._id} order={order} />
-                ))}
-                {orders.filter(o => o.dispute && o.dispute.status === 'open').length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <Shield className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                    <p>No open disputes</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      <Dialog open={!!editOrder} onOpenChange={v => !v && closeEditModal()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Order</DialogTitle>
-            <DialogDescription>Modify order details and save changes.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium">Recipient Name</label>
-              <input name="deliveryAddress.fullName" value={editForm.deliveryAddress.fullName} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+                </DialogContent>
+              </Dialog>
             </div>
-            <div>
-              <label className="block text-sm font-medium">Address</label>
-              <input name="deliveryAddress.address" value={editForm.deliveryAddress.address} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">City</label>
-              <input name="deliveryAddress.city" value={editForm.deliveryAddress.city} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">State</label>
-              <input name="deliveryAddress.state" value={editForm.deliveryAddress.state} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Pincode</label>
-              <input name="deliveryAddress.pincode" value={editForm.deliveryAddress.pincode} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Estimated Delivery</label>
-              <input name="estimatedDelivery" value={editForm.estimatedDelivery} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Status</label>
-              <select name="status" value={editForm.status} onChange={handleEditChange} className="w-full border rounded px-3 py-2">
-                <option value="pending">Pending</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="processing">Processing</option>
-                <option value="shipped">Shipped</option>
-                <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="disputed">Disputed</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Payment Status</label>
-              <select name="paymentStatus" value={editForm.paymentStatus} onChange={handleEditChange} className="w-full border rounded px-3 py-2">
-                <option value="pending">Pending</option>
-                <option value="completed">Completed</option>
-                <option value="failed">Failed</option>
-                <option value="refunded">Refunded</option>
-              </select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeEditModal} disabled={editLoading}>Cancel</Button>
-            <Button onClick={handleEditSave} disabled={editLoading}>Save</Button>
-          </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>

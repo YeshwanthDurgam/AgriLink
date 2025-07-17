@@ -8,7 +8,7 @@ const roleCheck = require('../../middlewares/roleCheck');
 const nodemailer = require('nodemailer');
 
 // Get all farmers with filtering and pagination
-router.get('/', roleCheck('super_admin', 'farmer_support'), async (req, res) => {
+router.get('/', roleCheck('admin', 'farmer_support'), async (req, res) => {
   try {
     const {
       page = 1,
@@ -68,7 +68,7 @@ router.get('/', roleCheck('super_admin', 'farmer_support'), async (req, res) => 
 });
 
 // Get farmer details by ID
-router.get('/:id', roleCheck('super_admin', 'farmer_support'), async (req, res) => {
+router.get('/:id', roleCheck('admin', 'farmer_support'), async (req, res) => {
   try {
     const farmer = await User.findById(req.params.id)
       .populate('stats')
@@ -117,7 +117,7 @@ router.get('/:id', roleCheck('super_admin', 'farmer_support'), async (req, res) 
 });
 
 // Approve farmer registration
-router.post('/:id/approve', roleCheck('super_admin', 'farmer_support'), async (req, res) => {
+router.post('/:id/approve', roleCheck('admin', 'farmer_support'), async (req, res) => {
   try {
     const { reason, notes } = req.body;
     const farmer = await User.findById(req.params.id);
@@ -206,7 +206,7 @@ router.post('/:id/approve', roleCheck('super_admin', 'farmer_support'), async (r
 });
 
 // Reject farmer registration
-router.post('/:id/reject', roleCheck('super_admin', 'farmer_support'), async (req, res) => {
+router.post('/:id/reject', roleCheck('admin', 'farmer_support'), async (req, res) => {
   try {
     const { reason, notes } = req.body;
     const farmer = await User.findById(req.params.id);
@@ -256,7 +256,7 @@ router.post('/:id/reject', roleCheck('super_admin', 'farmer_support'), async (re
 });
 
 // Suspend farmer account
-router.post('/:id/suspend', roleCheck('super_admin', 'admin'), async (req, res) => {
+router.post('/:id/suspend', roleCheck('admin'), async (req, res) => {
   try {
     const { reason, duration } = req.body;
     const farmer = await User.findById(req.params.id);
@@ -342,7 +342,7 @@ router.post('/:id/suspend', roleCheck('super_admin', 'admin'), async (req, res) 
 });
 
 // Reactivate farmer account
-router.post('/:id/reactivate', roleCheck('super_admin', 'admin'), async (req, res) => {
+router.post('/:id/reactivate', roleCheck('admin', 'admin'), async (req, res) => {
   try {
     const farmer = await User.findById(req.params.id);
 
@@ -468,7 +468,7 @@ async function getFarmerPerformanceMetrics(farmerId) {
 }
 
 // Get regional farmer statistics
-router.get('/stats/regional', roleCheck('super_admin', 'farmer_support'), async (req, res) => {
+router.get('/stats/regional', roleCheck('admin', 'farmer_support'), async (req, res) => {
   try {
     const regionalStats = await User.aggregate([
       {

@@ -17,7 +17,7 @@ const alertRoutes = require('./admin/alerts');
 const settingsRoutes = require('./admin/settings');
 
 // Admin authentication middleware
-const adminAuth = [auth, roleCheck('super_admin', 'produce_manager', 'logistics_coordinator', 'farmer_support')];
+const adminAuth = [auth, roleCheck('admin', 'produce_manager', 'logistics_coordinator', 'farmer_support')];
 
 // Dashboard overview route
 router.get('/dashboard-stats', adminAuth, async (req, res) => {

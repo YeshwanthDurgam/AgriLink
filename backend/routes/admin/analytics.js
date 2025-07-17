@@ -17,7 +17,7 @@ router.get('/', (req, res) => {
 });
 
 // 1. Aggregate products by crop season
-router.get('/crop-seasons', roleCheck('super_admin', 'analytics_manager', 'admin'), async (req, res) => {
+router.get('/crop-seasons', roleCheck('admin', 'analytics_manager'), async (req, res) => {
   try {
     const seasons = await Product.aggregate([
       {
@@ -39,7 +39,7 @@ router.get('/crop-seasons', roleCheck('super_admin', 'analytics_manager', 'admin
 });
 
 // 2. Generate analytics for a given crop season and region
-router.get('/season-report', roleCheck('super_admin', 'analytics_manager', 'admin'), async (req, res) => {
+router.get('/season-report', roleCheck('admin', 'analytics_manager'), async (req, res) => {
   try {
     const { startMonth, endMonth, region } = req.query;
     const match = {};
@@ -59,7 +59,7 @@ router.get('/season-report', roleCheck('super_admin', 'analytics_manager', 'admi
 });
 
 // 3. List top products by sales or rating
-router.get('/top-products', roleCheck('super_admin', 'analytics_manager', 'admin'), async (req, res) => {
+router.get('/top-products', roleCheck('admin', 'analytics_manager'), async (req, res) => {
   try {
     const { sortBy = 'orders', limit = 10 } = req.query;
     const products = await Product.find()
@@ -72,7 +72,7 @@ router.get('/top-products', roleCheck('super_admin', 'analytics_manager', 'admin
 });
 
 // 4. Get comprehensive dashboard statistics
-router.get('/dashboard-stats', roleCheck('super_admin', 'analytics_manager', 'admin'), async (req, res) => {
+router.get('/dashboard-stats', roleCheck('admin', 'analytics_manager'), async (req, res) => {
   try {
     const now = new Date();
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
@@ -141,7 +141,7 @@ router.get('/dashboard-stats', roleCheck('super_admin', 'analytics_manager', 'ad
 });
 
 // 5. Get system health metrics
-router.get('/system-health', roleCheck('super_admin', 'admin'), async (req, res) => {
+router.get('/system-health', roleCheck('admin'), async (req, res) => {
   try {
     const now = new Date();
     const lastHour = new Date(now.getTime() - 60 * 60 * 1000);
@@ -194,7 +194,7 @@ router.get('/system-health', roleCheck('super_admin', 'admin'), async (req, res)
 });
 
 // 6. Get user activity analytics
-router.get('/user-activity', roleCheck('super_admin', 'analytics_manager', 'admin'), async (req, res) => {
+router.get('/user-activity', roleCheck('admin', 'analytics_manager'), async (req, res) => {
   try {
     const { period = '7d' } = req.query;
     const now = new Date();
@@ -282,7 +282,7 @@ router.get('/user-activity', roleCheck('super_admin', 'analytics_manager', 'admi
 });
 
 // 7. Get revenue and financial analytics
-router.get('/revenue-analytics', roleCheck('super_admin', 'analytics_manager'), async (req, res) => {
+router.get('/revenue-analytics', roleCheck('admin', 'analytics_manager'), async (req, res) => {
   try {
     const { period = '30d' } = req.query;
     const now = new Date();

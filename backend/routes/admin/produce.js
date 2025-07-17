@@ -8,7 +8,7 @@ const QualityFlag = require('../../models/QualityFlag');
 const mongoose = require('mongoose');
 
 // Get all products with filtering and pagination
-router.get('/', roleCheck('super_admin', 'produce_manager'), async (req, res) => {
+router.get('/', roleCheck('admin', 'produce_manager'), async (req, res) => {
   try {
     const {
       page = 1,
@@ -75,7 +75,7 @@ router.get('/', roleCheck('super_admin', 'produce_manager'), async (req, res) =>
 });
 
 // Get pending products for approval
-router.get('/pending', roleCheck('super_admin', 'produce_manager', 'admin'), async (req, res) => {
+router.get('/pending', roleCheck('admin', 'produce_manager', 'admin'), async (req, res) => {
   try {
     const {
       page = 1,
@@ -122,7 +122,7 @@ router.get('/pending', roleCheck('super_admin', 'produce_manager', 'admin'), asy
 });
 
 // Get product details by ID
-router.get('/:id', roleCheck('super_admin', 'produce_manager', 'admin'), async (req, res) => {
+router.get('/:id', roleCheck('admin', 'produce_manager', 'admin'), async (req, res) => {
   try {
     const product = await Product.findById(req.params.id)
       .populate('farmer', 'name farmName farmLocation verificationStatus phone email')
@@ -161,7 +161,7 @@ router.get('/:id', roleCheck('super_admin', 'produce_manager', 'admin'), async (
 });
 
 // Approve product
-router.post('/:id/approve', roleCheck('super_admin', 'produce_manager', 'admin'), async (req, res) => {
+router.post('/:id/approve', roleCheck('admin', 'produce_manager'), async (req, res) => {
   try {
     console.log('APPROVE ROUTE: user:', req.user, 'body:', req.body, 'params:', req.params);
     const { notes, qualityScore } = req.body;
@@ -237,7 +237,7 @@ router.post('/:id/approve', roleCheck('super_admin', 'produce_manager', 'admin')
 });
 
 // Reject product
-router.post('/:id/reject', roleCheck('super_admin', 'produce_manager', 'admin'), async (req, res) => {
+router.post('/:id/reject', roleCheck('admin', 'produce_manager', 'admin'), async (req, res) => {
   try {
     const { reason, notes } = req.body;
     const product = await Product.findById(req.params.id);
@@ -294,7 +294,7 @@ router.post('/:id/reject', roleCheck('super_admin', 'produce_manager', 'admin'),
 });
 
 // Suspend product
-router.post('/:id/suspend', roleCheck('super_admin', 'produce_manager'), async (req, res) => {
+router.post('/:id/suspend', roleCheck('admin', 'produce_manager'), async (req, res) => {
   try {
     const { reason } = req.body;
     const product = await Product.findById(req.params.id);
@@ -344,7 +344,7 @@ router.post('/:id/suspend', roleCheck('super_admin', 'produce_manager'), async (
 });
 
 // Feature/unfeature product
-router.post('/:id/feature', roleCheck('super_admin', 'produce_manager'), async (req, res) => {
+router.post('/:id/feature', roleCheck('admin', 'produce_manager'), async (req, res) => {
   try {
     const { featured } = req.body;
     const product = await Product.findById(req.params.id);
@@ -389,7 +389,7 @@ router.post('/:id/feature', roleCheck('super_admin', 'produce_manager'), async (
 });
 
 // Update product pricing
-router.put('/:id/pricing', roleCheck('super_admin', 'produce_manager'), async (req, res) => {
+router.put('/:id/pricing', roleCheck('admin', 'produce_manager'), async (req, res) => {
   try {
     const { basePrice, regionalPricing, commissionRate } = req.body;
     const product = await Product.findById(req.params.id);
@@ -453,7 +453,7 @@ router.put('/:id/pricing', roleCheck('super_admin', 'produce_manager'), async (r
 });
 
 // Get inventory statistics
-router.get('/stats/inventory', roleCheck('super_admin', 'produce_manager'), async (req, res) => {
+router.get('/stats/inventory', roleCheck('admin', 'produce_manager'), async (req, res) => {
   try {
     const inventoryStats = await Product.aggregate([
       {
@@ -518,7 +518,7 @@ router.get('/stats/inventory', roleCheck('super_admin', 'produce_manager'), asyn
 });
 
 // Get seasonal availability statistics
-router.get('/stats/seasonal', roleCheck('super_admin', 'produce_manager'), async (req, res) => {
+router.get('/stats/seasonal', roleCheck('admin', 'produce_manager'), async (req, res) => {
   try {
     const currentMonth = new Date().getMonth() + 1;
     
@@ -577,7 +577,7 @@ router.get('/stats/seasonal', roleCheck('super_admin', 'produce_manager'), async
 });
 
 // 1. Get lifecycle/quality event history for a product
-router.get('/:id/lifecycle-events', roleCheck('super_admin', 'produce_manager'), async (req, res) => {
+router.get('/:id/lifecycle-events', roleCheck('admin', 'produce_manager'), async (req, res) => {
   try {
     const productId = req.params.id;
     // Get admin actions related to this product
@@ -609,7 +609,7 @@ router.get('/:id/lifecycle-events', roleCheck('super_admin', 'produce_manager'),
 });
 
 // 2. Update product status (suspend, out_of_stock, etc.)
-router.post('/:id/status', roleCheck('super_admin', 'produce_manager'), async (req, res) => {
+router.post('/:id/status', roleCheck('admin', 'produce_manager'), async (req, res) => {
   try {
     const { status, reason, notes } = req.body;
     const product = await Product.findById(req.params.id);
@@ -639,7 +639,7 @@ router.post('/:id/status', roleCheck('super_admin', 'produce_manager'), async (r
 });
 
 // 3. List all quality flags for a product
-router.get('/:id/quality-flags', roleCheck('super_admin', 'produce_manager'), async (req, res) => {
+router.get('/:id/quality-flags', roleCheck('admin', 'produce_manager'), async (req, res) => {
   try {
     const productId = req.params.id;
     const flags = await QualityFlag.find({ product: productId }).populate('reportedBy', 'name').sort({ createdAt: -1 });
@@ -650,7 +650,7 @@ router.get('/:id/quality-flags', roleCheck('super_admin', 'produce_manager'), as
 });
 
 // 4. Create a new quality flag for a product
-router.post('/:id/quality-flag', roleCheck('super_admin', 'produce_manager'), async (req, res) => {
+router.post('/:id/quality-flag', roleCheck('admin', 'produce_manager'), async (req, res) => {
   try {
     const productId = req.params.id;
     const { flagType, severity, description, evidence } = req.body;

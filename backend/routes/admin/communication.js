@@ -14,7 +14,7 @@ router.get('/', (req, res) => {
 });
 
 // 1. List all announcements with filtering
-router.get('/announcements', roleCheck('super_admin', 'communication_manager'), async (req, res) => {
+router.get('/announcements', roleCheck('admin', 'communication_manager'), async (req, res) => {
   try {
     const {
       page = 1,
@@ -68,7 +68,7 @@ router.get('/announcements', roleCheck('super_admin', 'communication_manager'), 
 });
 
 // 2. Create a new announcement
-router.post('/announcements', roleCheck('super_admin', 'communication_manager'), async (req, res) => {
+router.post('/announcements', roleCheck('admin', 'communication_manager'), async (req, res) => {
   try {
     const {
       title,
@@ -128,7 +128,7 @@ router.post('/announcements', roleCheck('super_admin', 'communication_manager'),
 });
 
 // 3. Update an announcement
-router.put('/announcements/:id', roleCheck('super_admin', 'communication_manager'), async (req, res) => {
+router.put('/announcements/:id', roleCheck('admin', 'communication_manager'), async (req, res) => {
   try {
     const announcement = await Announcement.findById(req.params.id);
     
@@ -177,7 +177,7 @@ router.put('/announcements/:id', roleCheck('super_admin', 'communication_manager
 });
 
 // 4. Delete an announcement
-router.delete('/announcements/:id', roleCheck('super_admin'), async (req, res) => {
+router.delete('/announcements/:id', roleCheck('admin'), async (req, res) => {
   try {
     const announcement = await Announcement.findById(req.params.id);
     
@@ -217,7 +217,7 @@ router.delete('/announcements/:id', roleCheck('super_admin'), async (req, res) =
 });
 
 // 5. Approve an announcement
-router.post('/announcements/:id/approve', roleCheck('super_admin'), async (req, res) => {
+router.post('/announcements/:id/approve', roleCheck('admin'), async (req, res) => {
   try {
     const { notes } = req.body;
     const announcement = await Announcement.findById(req.params.id);
@@ -262,7 +262,7 @@ router.post('/announcements/:id/approve', roleCheck('super_admin'), async (req, 
 });
 
 // 6. Get system notifications for admins
-router.get('/notifications', roleCheck('super_admin', 'admin'), async (req, res) => {
+router.get('/notifications', roleCheck('admin', 'communication_manager'), async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
 
@@ -294,7 +294,7 @@ router.get('/notifications', roleCheck('super_admin', 'admin'), async (req, res)
 });
 
 // Send a custom email to a user (admin contact)
-router.post('/contact-user', roleCheck('super_admin', 'communication_manager'), async (req, res) => {
+router.post('/contact-user', roleCheck('admin', 'communication_manager'), async (req, res) => {
   try {
     const { userId, subject, message } = req.body;
     if (!userId || !subject || !message) {
