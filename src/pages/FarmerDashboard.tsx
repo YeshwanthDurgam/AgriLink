@@ -30,9 +30,24 @@ import {
   Settings,
   Bell,
   Download,
-  Filter
+  Filter,
+  Send
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEffect } from 'react';
+import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
+import { apiService } from '@/lib/api';
+
+interface Message {
+  _id: string;
+  sender: string;
+  receiver: string;
+  senderRole: string;
+  receiverRole: string;
+  content: string;
+  createdAt: string;
+}
 
 const FarmerDashboard = () => {
   const { user } = useAuth();
@@ -148,6 +163,45 @@ const FarmerDashboard = () => {
       { type: 'delivery', message: 'Delivery scheduled for tomorrow', priority: 'low' }
     ]
   });
+
+  // Messaging state for farmer
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [messageInput, setMessageInput] = useState('');
+  const [loadingMessages, setLoadingMessages] = useState(false);
+
+  // Fetch messages with admin
+  useEffect(() => {
+    fetchMessages();
+  }, []);
+
+  const fetchMessages = async () => {
+    setLoadingMessages(true);
+    try {
+      const res = await apiService.get(`/messages?userId=${user?.id}&partnerId=admin`);
+      setMessages(res.data?.docs || res.data || []);
+    } catch (err) {
+      toast.error('Failed to load messages');
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!messageInput.trim()) return;
+    try {
+      await apiService.post('/messages', {
+        senderId: user?.id,
+        receiverId: 'admin',
+        senderRole: 'farmer',
+        receiverRole: 'admin',
+        content: messageInput.trim(),
+      });
+      setMessageInput('');
+      fetchMessages();
+    } catch (err) {
+      toast.error('Failed to send message');
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -290,11 +344,12 @@ const FarmerDashboard = () => {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="products">Products</TabsTrigger>
             <TabsTrigger value="orders">Orders</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="messaging">Messages</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -562,6 +617,48 @@ const FarmerDashboard = () => {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="messaging" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Message Admin
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col h-96">
+                  <div className="flex-1 overflow-y-auto mb-2 bg-gray-50 p-2 rounded">
+                    {loadingMessages ? (
+                      <div>Loading...</div>
+                    ) : (
+                      <ul className="space-y-2">
+                        {messages.map(msg => (
+                          <li key={msg._id} className={`flex ${msg.senderRole === 'farmer' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`p-2 rounded-lg ${msg.senderRole === 'farmer' ? 'bg-green-200' : 'bg-gray-200'}`}>
+                              <span className="block text-sm">{msg.content}</span>
+                              <span className="block text-xs text-gray-500 text-right">{new Date(msg.createdAt).toLocaleTimeString()}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      value={messageInput}
+                      onChange={e => setMessageInput(e.target.value)}
+                      placeholder="Type your message to admin..."
+                      onKeyDown={e => { if (e.key === 'Enter') handleSendMessage(); }}
+                    />
+                    <Button onClick={handleSendMessage} disabled={!messageInput.trim()}>
+                      <Send className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">

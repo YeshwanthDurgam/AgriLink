@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiService } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Announcement {
   _id: string;
@@ -48,7 +49,24 @@ interface Announcement {
   };
 }
 
+interface Farmer {
+  _id: string;
+  name: string;
+  email: string;
+}
+
+interface Message {
+  _id: string;
+  sender: string;
+  receiver: string;
+  senderRole: string;
+  receiverRole: string;
+  content: string;
+  createdAt: string;
+}
+
 const AdminCommunication = () => {
+  const { user } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -75,20 +93,104 @@ const AdminCommunication = () => {
     }
   });
 
+  // Messaging state
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  const [selectedFarmer, setSelectedFarmer] = useState<Farmer | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [messageInput, setMessageInput] = useState('');
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [loadingFarmers, setLoadingFarmers] = useState(false);
+  const [farmerSearch, setFarmerSearch] = useState('');
+
+  // Persist active tab in localStorage
+  useEffect(() => {
+    const savedTab = localStorage.getItem('adminCommActiveTab');
+    if (savedTab) setActiveTab(savedTab);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('adminCommActiveTab', activeTab);
+  }, [activeTab]);
+
+  // Do not select any farmer by default
+  useEffect(() => {
+    setSelectedFarmer(null);
+  }, [activeTab]);
+
+  // Fetch messages only when a farmer is selected
+  useEffect(() => {
+    if (selectedFarmer) {
+      fetchMessages(selectedFarmer._id);
+    }
+  }, [selectedFarmer]);
+
+  // Filter and sort farmers
+  const filteredFarmers = useMemo(() => {
+    const search = farmerSearch.trim().toLowerCase();
+    return farmers
+      .filter(farmer =>
+        farmer.name.toLowerCase().includes(search) ||
+        farmer.email.toLowerCase().includes(search)
+      )
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  }, [farmers, farmerSearch]);
+
   useEffect(() => {
     fetchAnnouncements();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'direct') {
+      fetchFarmers();
+    }
+  }, [activeTab]);
 
   const fetchAnnouncements = async () => {
     try {
       setLoading(true);
       const response = await apiService.get('/admin/communication/announcements');
-      setAnnouncements(response.data.data.docs || []);
-    } catch (error) {
-      console.error('Error fetching announcements:', error);
-      toast.error('Failed to load announcements');
+      console.log('Full API response:', response);
+      console.log('response.data:', response.data);
+      console.log('response.data.docs:', response.data?.docs);
+      setAnnouncements(response.data?.docs || []);
+      toast.dismiss('announcements-error');
+    } catch (error: any) {
+      if (error?.response?.status === 401) {
+        toast.error('Session expired. Please log in again.', { id: 'announcements-error' });
+      } else if (error?.response?.status === 403) {
+        toast.error('You do not have permission to view announcements.', { id: 'announcements-error' });
+      } else {
+        toast.error('Failed to load announcements', { id: 'announcements-error' });
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFarmers = async () => {
+    setLoadingFarmers(true);
+    try {
+      const res = await apiService.get('/admin/farmers?limit=100');
+      console.log('Farmers API response:', res);
+      // Try both possible response paths
+      const farmersList = res.data?.data?.docs || res.data?.docs || [];
+      setFarmers(farmersList);
+    } catch (err) {
+      toast.error('Failed to load farmers');
+    } finally {
+      setLoadingFarmers(false);
+    }
+  };
+
+  const fetchMessages = async (farmerId: string) => {
+    setLoadingMessages(true);
+    try {
+      const res = await apiService.get(`/messages?userId=${user.id}&partnerId=${farmerId}`);
+      setMessages(res.data.data || res.data || []);
+    } catch (err) {
+      toast.error('Failed to load messages');
+    } finally {
+      setLoadingMessages(false);
     }
   };
 
@@ -183,6 +285,23 @@ const AdminCommunication = () => {
       fetchAnnouncements();
     } catch (error) {
       toast.error('Failed to approve announcement');
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedFarmer || !messageInput.trim()) return;
+    try {
+      await apiService.post('/messages', {
+        senderId: user.id,
+        receiverId: selectedFarmer._id,
+        senderRole: 'Admin',
+        receiverRole: 'Farmer',
+        content: messageInput.trim(),
+      });
+      setMessageInput('');
+      fetchMessages(selectedFarmer._id);
+    } catch (err) {
+      toast.error('Failed to send message');
     }
   };
 
@@ -361,23 +480,23 @@ const AdminCommunication = () => {
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
-                          <h3 className="font-semibold">{announcement.title}</h3>
+                          <h3 className="font-semibold">{announcement.title || 'Untitled'}</h3>
                           <Badge className={getPriorityColor(announcement.priority)}>
-                            {announcement.priority}
+                            {announcement.priority || 'N/A'}
                           </Badge>
                           <Badge className={getStatusColor(announcement.status)}>
-                            {announcement.status}
+                            {announcement.status || 'N/A'}
                           </Badge>
                         </div>
                         
-                        <p className="text-gray-600 text-sm mb-2">{announcement.content}</p>
+                        <p className="text-gray-600 text-sm mb-2">{announcement.content || ''}</p>
                         
                         <div className="flex items-center gap-4 text-xs text-gray-500">
                           <span className="flex items-center gap-1">
                             <Users className="w-3 h-3" />
-                            {announcement.targetAudience.join(', ')}
+                            {(announcement.targetAudience || []).join(', ')}
                           </span>
-                          {announcement.targetRegions.length > 0 && (
+                          {announcement.targetRegions && announcement.targetRegions.length > 0 && (
                             <span className="flex items-center gap-1">
                               <MapPin className="w-3 h-3" />
                               {announcement.targetRegions.join(', ')}
@@ -385,7 +504,9 @@ const AdminCommunication = () => {
                           )}
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            {new Date(announcement.schedule.publishAt).toLocaleDateString()}
+                            {announcement.schedule && announcement.schedule.publishAt
+                              ? new Date(announcement.schedule.publishAt).toLocaleDateString()
+                              : 'N/A'}
                           </span>
                         </div>
                       </div>
@@ -421,9 +542,9 @@ const AdminCommunication = () => {
                     
                     {/* Delivery Stats */}
                     <div className="flex items-center gap-4 text-xs text-gray-500 border-t pt-2">
-                      <span>Recipients: {announcement.deliveryStats.totalRecipients}</span>
-                      <span>Delivered: {announcement.deliveryStats.delivered}</span>
-                      <span>Opened: {announcement.deliveryStats.opened}</span>
+                      <span>Recipients: {announcement.deliveryStats?.totalRecipients ?? 0}</span>
+                      <span>Delivered: {announcement.deliveryStats?.delivered ?? 0}</span>
+                      <span>Opened: {announcement.deliveryStats?.opened ?? 0}</span>
                     </div>
                   </div>
                 ))}
@@ -447,8 +568,72 @@ const AdminCommunication = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-gray-500 py-8 text-center">
-                Coming soon: Search for any user, farmer, or buyer and send direct messages (email, SMS, or in-app).
+              <div className="flex gap-6">
+                {/* Farmer List */}
+                <div className="w-1/3 border-r pr-4 max-h-96 overflow-y-auto">
+                  <h4 className="font-semibold mb-2">Farmers</h4>
+                  <Input
+                    className="mb-2"
+                    placeholder="Search farmers..."
+                    value={farmerSearch}
+                    onChange={e => setFarmerSearch(e.target.value)}
+                  />
+                  {loadingFarmers ? (
+                    <div>Loading...</div>
+                  ) : (
+                    <ul>
+                      {filteredFarmers.map(farmer => (
+                        <li
+                          key={farmer._id}
+                          className={`p-2 rounded cursor-pointer ${selectedFarmer?._id === farmer._id ? 'bg-green-100' : ''}`}
+                          onClick={() => setSelectedFarmer(farmer)}
+                        >
+                          <span className="font-medium">{farmer.name}</span>
+                          <span className="block text-xs text-gray-500">{farmer.email}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                {/* Conversation */}
+                <div className="flex-1 flex flex-col h-96">
+                  {selectedFarmer ? (
+                    <>
+                      <div className="border-b pb-2 mb-2">
+                        <h4 className="font-semibold">Conversation with {selectedFarmer.name}</h4>
+                      </div>
+                      <div className="flex-1 overflow-y-auto mb-2 bg-gray-50 p-2 rounded">
+                        {loadingMessages ? (
+                          <div>Loading...</div>
+                        ) : (
+                          <ul className="space-y-2">
+                            {messages.map(msg => (
+                              <li key={msg._id} className={`flex ${msg.sender === user.id ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`p-2 rounded-lg ${msg.sender === user.id ? 'bg-green-200' : 'bg-gray-200'}`}>
+                                  <span className="block text-sm">{msg.content}</span>
+                                  <span className="block text-xs text-gray-500 text-right">{new Date(msg.createdAt).toLocaleTimeString()}</span>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          value={messageInput}
+                          onChange={e => setMessageInput(e.target.value)}
+                          placeholder="Type your message..."
+                          onKeyDown={e => { if (e.key === 'Enter') handleSendMessage(); }}
+                        />
+                        <Button onClick={handleSendMessage} disabled={!messageInput.trim()}>
+                          <Send className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-gray-400">Select a farmer to start conversation</div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
