@@ -43,6 +43,9 @@ const adminActionSchema = new mongoose.Schema({
       
       // Communication
       'announcement_sent',
+      'announcement_created', // Added for announcement creation
+      'announcement_approved', // Added for announcement approval
+      'announcement_updated', // Added for announcement update
       'notification_sent',
       'email_sent',
       

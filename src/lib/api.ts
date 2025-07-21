@@ -43,6 +43,7 @@ export interface User {
     averageRating: number;
     monthlyRevenue: number;
   };
+  rating?: number;
   // Security-related fields
   lastLogin?: string;
   loginAttempts?: number;

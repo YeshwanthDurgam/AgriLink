@@ -24,7 +24,8 @@ const announcementSchema = new mongoose.Schema({
       'quality_update',
       'system_maintenance',
       'policy_change',
-      'emergency'
+      'emergency',
+      'carousel' // Added carousel type
     ],
     default: 'general'
   },
@@ -96,6 +97,15 @@ const announcementSchema = new mongoose.Schema({
     name: String,
     size: Number
   }],
+  image: {
+    type: String,
+    required: function() { return this.type === 'carousel'; },
+  },
+  targetUrl: {
+    type: String,
+    required: function() { return this.type === 'carousel'; },
+    trim: true,
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -161,8 +171,8 @@ const announcementSchema = new mongoose.Schema({
 
 // Indexes for better query performance
 announcementSchema.index({ status: 1, 'schedule.publishAt': 1 });
+// Removed compound index on targetRegions and targetAudience to avoid parallel arrays error
 announcementSchema.index({ type: 1, priority: 1 });
-announcementSchema.index({ targetAudience: 1, targetRegions: 1 });
 announcementSchema.index({ createdBy: 1, createdAt: -1 });
 announcementSchema.index({ tags: 1 });
 
@@ -292,6 +302,20 @@ announcementSchema.pre('save', function(next) {
   }
   
   this.updatedAt = now;
+  next();
+});
+
+// Add a schema-level validation for carousel type
+// Ensure image and targetUrl are present for carousel type
+announcementSchema.pre('validate', function(next) {
+  if (this.type === 'carousel') {
+    if (!this.image) {
+      this.invalidate('image', 'Image is required for carousel announcements');
+    }
+    if (!this.targetUrl) {
+      this.invalidate('targetUrl', 'Target URL is required for carousel announcements');
+    }
+  }
   next();
 });
 

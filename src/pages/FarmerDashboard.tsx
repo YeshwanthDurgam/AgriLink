@@ -38,6 +38,7 @@ import { useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { apiService } from '@/lib/api';
+import { useRef } from 'react';
 
 interface Message {
   _id: string;
@@ -48,6 +49,8 @@ interface Message {
   content: string;
   createdAt: string;
 }
+
+const ADMIN_ID = "686908204944785133a50bbc";
 
 const FarmerDashboard = () => {
   const { user } = useAuth();
@@ -168,16 +171,27 @@ const FarmerDashboard = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageInput, setMessageInput] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const messageListRef = useRef<HTMLDivElement>(null);
 
   // Fetch messages with admin
   useEffect(() => {
-    fetchMessages();
-  }, []);
+    if (user?.id) {
+      fetchMessages();
+    }
+  }, [user]);
+
+  // Scroll to bottom when messages change or tab is opened
+  useEffect(() => {
+    if (activeTab === 'messaging' && messageListRef.current) {
+      messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+    }
+  }, [messages, activeTab]);
 
   const fetchMessages = async () => {
+    if (!user?.id) return; // Prevent API call if user is not loaded
     setLoadingMessages(true);
     try {
-      const res = await apiService.get(`/messages?userId=${user?.id}&partnerId=admin`);
+      const res = await apiService.get(`/messages?userId=${user.id}&partnerId=${ADMIN_ID}`);
       setMessages(res.data?.docs || res.data || []);
     } catch (err) {
       toast.error('Failed to load messages');
@@ -187,13 +201,13 @@ const FarmerDashboard = () => {
   };
 
   const handleSendMessage = async () => {
-    if (!messageInput.trim()) return;
+    if (!user?.id || !messageInput.trim()) return;
     try {
       await apiService.post('/messages', {
-        senderId: user?.id,
-        receiverId: 'admin',
-        senderRole: 'farmer',
-        receiverRole: 'admin',
+        senderId: user.id,
+        receiverId: ADMIN_ID,
+        senderRole: 'Farmer',
+        receiverRole: 'Admin',
         content: messageInput.trim(),
       });
       setMessageInput('');
@@ -248,10 +262,19 @@ const FarmerDashboard = () => {
     }
   };
 
+  const TAB_KEY = 'farmerDashboardActiveTab';
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem(TAB_KEY) || 'overview');
+  useEffect(() => {
+    localStorage.setItem(TAB_KEY, activeTab);
+  }, [activeTab]);
+
+  // Check if there are unread messages
+  const hasUnreadMessages = messages.some(msg => msg.sender !== user?.id);
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
+      <div className="bg-white shadow-sm border-b px-4 py-6 md:px-8 md:py-8 rounded-b-2xl" style={{background: 'linear-gradient(90deg, #e0ffe0 0%, #f8fafc 100%)'}}>
         <div className="container mx-auto px-4 py-6">
           <div className="flex justify-between items-center">
             <div>
@@ -274,7 +297,7 @@ const FarmerDashboard = () => {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-2 md:px-0 py-6">
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card className="hover-lift">
@@ -343,13 +366,16 @@ const FarmerDashboard = () => {
         </div>
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="overview" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="products">Products</TabsTrigger>
             <TabsTrigger value="orders">Orders</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            <TabsTrigger value="messaging">Messages</TabsTrigger>
+            <TabsTrigger value="messaging">
+              Messages
+              {hasUnreadMessages && <span className="inline-block w-2 h-2 bg-red-500 rounded-full ml-2"></span>}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -628,34 +654,42 @@ const FarmerDashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col h-96">
-                  <div className="flex-1 overflow-y-auto mb-2 bg-gray-50 p-2 rounded">
-                    {loadingMessages ? (
-                      <div>Loading...</div>
-                    ) : (
-                      <ul className="space-y-2">
-                        {messages.map(msg => (
-                          <li key={msg._id} className={`flex ${msg.senderRole === 'farmer' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`p-2 rounded-lg ${msg.senderRole === 'farmer' ? 'bg-green-200' : 'bg-gray-200'}`}>
-                              <span className="block text-sm">{msg.content}</span>
-                              <span className="block text-xs text-gray-500 text-right">{new Date(msg.createdAt).toLocaleTimeString()}</span>
+                <div ref={messageListRef} className="bg-gray-50 p-2 rounded mb-2 overflow-y-auto" style={{ height: 300 }}>
+                  {loadingMessages ? (
+                    <div>Loading...</div>
+                  ) : (
+                    <ul className="space-y-2">
+                      {messages.map(msg => {
+                        const isSent = msg.sender === user.id;
+                        return (
+                          <li key={msg._id} className={`flex ${isSent ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`p-2 rounded-2xl max-w-[70%] shadow ${isSent ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-900'}`}
+                              style={{ borderBottomRightRadius: isSent ? 0 : '1rem', borderBottomLeftRadius: isSent ? '1rem' : 0 }}>
+                              <span className="block text-sm break-words">{msg.content}</span>
+                              <span className={`block text-xs mt-1 ${isSent ? 'text-green-100' : 'text-gray-500'} text-right`}>{new Date(msg.createdAt).toLocaleTimeString()}</span>
                             </div>
                           </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      value={messageInput}
-                      onChange={e => setMessageInput(e.target.value)}
-                      placeholder="Type your message to admin..."
-                      onKeyDown={e => { if (e.key === 'Enter') handleSendMessage(); }}
-                    />
-                    <Button onClick={handleSendMessage} disabled={!messageInput.trim()}>
-                      <Send className="w-4 h-4" />
-                    </Button>
-                  </div>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={messageInput}
+                    onChange={e => setMessageInput(e.target.value)}
+                    placeholder="Type your message to admin..."
+                    onKeyDown={e => { if (e.key === 'Enter') handleSendMessage(); }}
+                    disabled={!user?.id}
+                  />
+                  <Button onClick={handleSendMessage} disabled={!user?.id || !messageInput.trim()}>
+                    <Send className="w-4 h-4" />
+                  </Button>
+                  {!user?.id && (
+                    <div className="text-red-500 text-sm mt-2">
+                      Please log in to send messages.
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +47,8 @@ interface Announcement {
     delivered: number;
     opened: number;
   };
+  image?: string; // Added for carousel type
+  targetUrl?: string; // Added for carousel type
 }
 
 interface Farmer {
@@ -66,6 +68,7 @@ interface Message {
 }
 
 const AdminCommunication = () => {
+  const messageListRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +80,8 @@ const AdminCommunication = () => {
   const [formData, setFormData] = useState({
     title: '',
     content: '',
+    image: '', // for carousel
+    targetUrl: '', // for carousel
     type: 'general',
     priority: 'medium',
     targetAudience: ['all'],
@@ -101,6 +106,7 @@ const AdminCommunication = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [loadingFarmers, setLoadingFarmers] = useState(false);
   const [farmerSearch, setFarmerSearch] = useState('');
+  const [unreadMessages, setUnreadMessages] = useState<{ [farmerId: string]: boolean }>({});
 
   // Persist active tab in localStorage
   useEffect(() => {
@@ -123,6 +129,13 @@ const AdminCommunication = () => {
       fetchMessages(selectedFarmer._id);
     }
   }, [selectedFarmer]);
+
+  // Scroll to bottom when messages change or farmer is selected
+  useEffect(() => {
+    if (messageListRef.current) {
+      messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+    }
+  }, [messages, selectedFarmer]);
 
   // Filter and sort farmers
   const filteredFarmers = useMemo(() => {
@@ -187,6 +200,7 @@ const AdminCommunication = () => {
     try {
       const res = await apiService.get(`/messages?userId=${user.id}&partnerId=${farmerId}`);
       setMessages(res.data.data || res.data || []);
+      setUnreadMessages(prev => ({ ...prev, [farmerId]: false })); // Mark as read after fetching
     } catch (err) {
       toast.error('Failed to load messages');
     } finally {
@@ -204,7 +218,10 @@ const AdminCommunication = () => {
         schedule: {
           ...formData.schedule,
           publishAt: new Date(formData.schedule.publishAt).toISOString(),
-        }
+        },
+        image: formData.type === 'carousel' ? formData.image : undefined,
+        targetUrl: formData.type === 'carousel' ? formData.targetUrl : undefined,
+        status: formData.type === 'carousel' ? 'active' : undefined
       };
       await apiService.post('/admin/communication/announcements', payload);
       toast.success('Announcement created successfully!');
@@ -212,6 +229,8 @@ const AdminCommunication = () => {
       setFormData({
         title: '',
         content: '',
+        image: '',
+        targetUrl: '',
         type: 'general',
         priority: 'medium',
         targetAudience: ['all'],
@@ -237,12 +256,19 @@ const AdminCommunication = () => {
     if (!editingAnnouncement) return;
     
     try {
-      await apiService.put(`/admin/communication/announcements/${editingAnnouncement._id}`, formData);
+      const payload = {
+        ...formData,
+        image: formData.type === 'carousel' ? formData.image : undefined,
+        targetUrl: formData.type === 'carousel' ? formData.targetUrl : undefined,
+      };
+      await apiService.put(`/admin/communication/announcements/${editingAnnouncement._id}`, payload);
       toast.success('Announcement updated successfully!');
       setEditingAnnouncement(null);
       setFormData({
         title: '',
         content: '',
+        image: '',
+        targetUrl: '',
         type: 'general',
         priority: 'medium',
         targetAudience: ['all'],
@@ -300,6 +326,7 @@ const AdminCommunication = () => {
       });
       setMessageInput('');
       fetchMessages(selectedFarmer._id);
+      setUnreadMessages(prev => ({ ...prev, [selectedFarmer._id]: true })); // Mark as unread after sending
     } catch (err) {
       toast.error('Failed to send message');
     }
@@ -310,8 +337,10 @@ const AdminCommunication = () => {
     setFormData({
       title: announcement.title,
       content: announcement.content,
+      image: announcement.image || '',
+      targetUrl: announcement.targetUrl || '',
       type: announcement.type,
-      priority: announcement.priority,
+      priority: announcement.priority || 'medium',
       targetAudience: announcement.targetAudience,
       targetRegions: announcement.targetRegions,
       schedule: {
@@ -420,6 +449,7 @@ const AdminCommunication = () => {
                           <SelectItem value="harvest_schedule">Harvest Schedule</SelectItem>
                           <SelectItem value="weather_alert">Weather Alert</SelectItem>
                           <SelectItem value="system_maintenance">System Maintenance</SelectItem>
+                          <SelectItem value="carousel">Carousel</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -439,6 +469,49 @@ const AdminCommunication = () => {
                       </Select>
                     </div>
                   </div>
+                  
+                  {formData.type === 'carousel' && (
+                    <>
+                      <div>
+                        <Label htmlFor="carousel-image">Image</Label>
+                        <Input
+                          id="carousel-image"
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (ev) => {
+                                setFormData({ ...formData, image: ev.target?.result as string });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="carousel-target-url">Target URL</Label>
+                        <Input
+                          id="carousel-target-url"
+                          type="url"
+                          placeholder="https://..."
+                          value={formData.targetUrl}
+                          onChange={e => setFormData({ ...formData, targetUrl: e.target.value })}
+                          required={formData.type === 'carousel'}
+                        />
+                      </div>
+                      {formData.image && (
+                        <div className="relative mt-4 w-full h-48 rounded-xl overflow-hidden shadow border">
+                          <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                          <div className="absolute bottom-0 left-0 w-full p-4 bg-black bg-opacity-50 text-white">
+                            <div className="text-xl font-bold">{formData.title || 'Title here'}</div>
+                            <div className="text-base">{formData.content || 'Description here'}</div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                   
                   <div>
                     <Label htmlFor="publishAt">Publish Date</Label>
@@ -488,9 +561,10 @@ const AdminCommunication = () => {
                             {announcement.status || 'N/A'}
                           </Badge>
                         </div>
-                        
+                        {announcement.type === 'carousel' && announcement.image && (
+                          <img src={announcement.image} alt="Carousel" className="mb-2 rounded shadow max-h-32" />
+                        )}
                         <p className="text-gray-600 text-sm mb-2">{announcement.content || ''}</p>
-                        
                         <div className="flex items-center gap-4 text-xs text-gray-500">
                           <span className="flex items-center gap-1">
                             <Users className="w-3 h-3" />
@@ -589,6 +663,9 @@ const AdminCommunication = () => {
                           onClick={() => setSelectedFarmer(farmer)}
                         >
                           <span className="font-medium">{farmer.name}</span>
+                          {unreadMessages[farmer._id] && (
+                            <span className="inline-block w-2 h-2 bg-red-500 rounded-full ml-2"></span>
+                          )}
                           <span className="block text-xs text-gray-500">{farmer.email}</span>
                         </li>
                       ))}
@@ -602,7 +679,7 @@ const AdminCommunication = () => {
                       <div className="border-b pb-2 mb-2">
                         <h4 className="font-semibold">Conversation with {selectedFarmer.name}</h4>
                       </div>
-                      <div className="flex-1 overflow-y-auto mb-2 bg-gray-50 p-2 rounded">
+                      <div ref={messageListRef} className="flex-1 overflow-y-auto mb-2 bg-gray-50 p-2 rounded">
                         {loadingMessages ? (
                           <div>Loading...</div>
                         ) : (
@@ -712,6 +789,7 @@ const AdminCommunication = () => {
                     <SelectItem value="harvest_schedule">Harvest Schedule</SelectItem>
                     <SelectItem value="weather_alert">Weather Alert</SelectItem>
                     <SelectItem value="system_maintenance">System Maintenance</SelectItem>
+                    <SelectItem value="carousel">Carousel</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -732,6 +810,43 @@ const AdminCommunication = () => {
               </div>
             </div>
             
+            {formData.type === 'carousel' && (
+              <>
+                <div>
+                  <Label htmlFor="edit-carousel-image">Image</Label>
+                  <Input
+                    id="edit-carousel-image"
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          setFormData({ ...formData, image: ev.target?.result as string });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                  {formData.image && (
+                    <img src={formData.image} alt="Carousel Preview" className="mt-2 rounded shadow max-h-40" />
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="edit-carousel-target-url">Target URL</Label>
+                  <Input
+                    id="edit-carousel-target-url"
+                    type="url"
+                    placeholder="https://..."
+                    value={formData.targetUrl}
+                    onChange={e => setFormData({ ...formData, targetUrl: e.target.value })}
+                    required={formData.type === 'carousel'}
+                  />
+                </div>
+              </>
+            )}
+
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setEditingAnnouncement(null)}>
                 Cancel
