@@ -47,6 +47,10 @@ const announcementSchema = new mongoose.Schema({
     type: String,
     enum: ['Vegetables', 'Fruits', 'Grains', 'Herbs', 'Seeds', 'Dairy', 'Other']
   }],
+  targetUsers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  }],
   status: {
     type: String,
     enum: ['draft', 'scheduled', 'active', 'expired', 'cancelled'],

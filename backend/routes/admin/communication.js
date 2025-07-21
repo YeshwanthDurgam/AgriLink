@@ -81,7 +81,8 @@ router.post('/announcements', roleCheck('admin', 'communication_manager'), async
       schedule,
       delivery,
       attachments,
-      tags
+      tags,
+      targetUsers // new field for direct/group targeting
     } = req.body;
 
     const announcement = new Announcement({
@@ -96,6 +97,7 @@ router.post('/announcements', roleCheck('admin', 'communication_manager'), async
       delivery,
       attachments,
       tags,
+      targetUsers,
       createdBy: req.user.id
     });
 

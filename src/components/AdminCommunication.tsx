@@ -49,6 +49,7 @@ interface Announcement {
   };
   image?: string; // Added for carousel type
   targetUrl?: string; // Added for carousel type
+  targetUsers?: string[]; // Added for targeted farmers
 }
 
 interface Farmer {
@@ -75,6 +76,8 @@ const AdminCommunication = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
   const [activeTab, setActiveTab] = useState('announcements');
+  // State for viewing announcement details
+  const [viewAnnouncement, setViewAnnouncement] = useState<Announcement | null>(null);
 
   // Form state for new announcement
   const [formData, setFormData] = useState({
@@ -97,6 +100,10 @@ const AdminCommunication = () => {
       inApp: true
     }
   });
+
+  // Recipient selection state
+  const [recipientType, setRecipientType] = useState<'all' | 'select'>('all');
+  const [selectedFarmerIds, setSelectedFarmerIds] = useState<string[]>([]);
 
   // Messaging state
   const [farmers, setFarmers] = useState<Farmer[]>([]);
@@ -152,11 +159,12 @@ const AdminCommunication = () => {
     fetchAnnouncements();
   }, []);
 
+  // Fetch farmers when needed for Select Farmers
   useEffect(() => {
-    if (activeTab === 'direct') {
+    if ((isCreateDialogOpen && recipientType === 'select') || (activeTab === 'direct')) {
       fetchFarmers();
     }
-  }, [activeTab]);
+  }, [isCreateDialogOpen, recipientType, activeTab]);
 
   const fetchAnnouncements = async () => {
     try {
@@ -221,7 +229,9 @@ const AdminCommunication = () => {
         },
         image: formData.type === 'carousel' ? formData.image : undefined,
         targetUrl: formData.type === 'carousel' ? formData.targetUrl : undefined,
-        status: formData.type === 'carousel' ? 'active' : undefined
+        status: formData.type === 'carousel' ? 'active' : undefined,
+        targetAudience: recipientType === 'all' ? ['farmers'] : [],
+        targetUsers: recipientType === 'select' ? selectedFarmerIds : [],
       };
       await apiService.post('/admin/communication/announcements', payload);
       toast.success('Announcement created successfully!');
@@ -246,6 +256,8 @@ const AdminCommunication = () => {
           inApp: true
         }
       });
+      setRecipientType('all');
+      setSelectedFarmerIds([]);
       fetchAnnouncements();
     } catch (error) {
       toast.error('Failed to create announcement');
@@ -332,8 +344,20 @@ const AdminCommunication = () => {
     }
   };
 
+  // When opening edit dialog, set recipientType and selectedFarmerIds
   const openEditDialog = (announcement: Announcement) => {
     setEditingAnnouncement(announcement);
+    // Determine recipient type and selected farmers
+    if (announcement.type === 'carousel') {
+      setRecipientType('all');
+      setSelectedFarmerIds([]);
+    } else if (announcement.targetUsers && announcement.targetUsers.length > 0) {
+      setRecipientType('select');
+      setSelectedFarmerIds(announcement.targetUsers.map((id: any) => typeof id === 'string' ? id : id._id));
+    } else {
+      setRecipientType('all');
+      setSelectedFarmerIds([]);
+    }
     setFormData({
       title: announcement.title,
       content: announcement.content,
@@ -453,7 +477,6 @@ const AdminCommunication = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    
                     <div>
                       <Label htmlFor="priority">Priority</Label>
                       <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value })}>
@@ -469,6 +492,62 @@ const AdminCommunication = () => {
                       </Select>
                     </div>
                   </div>
+
+                  {/* Recipient Selector (not for carousel) */}
+                  {formData.type !== 'carousel' && (
+                    <div>
+                      <Label>Recipients</Label>
+                      <div className="flex gap-6 mt-1">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="recipientType"
+                            value="all"
+                            checked={recipientType === 'all'}
+                            onChange={() => setRecipientType('all')}
+                          />
+                          All Farmers
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="recipientType"
+                            value="select"
+                            checked={recipientType === 'select'}
+                            onChange={() => setRecipientType('select')}
+                          />
+                          Select Farmers
+                        </label>
+                      </div>
+                      {recipientType === 'select' && (
+                        <div className="mt-2 border rounded p-2 max-h-48 overflow-y-auto bg-gray-50">
+                          <Input
+                            placeholder="Search farmers..."
+                            value={farmerSearch}
+                            onChange={e => setFarmerSearch(e.target.value)}
+                            className="mb-2"
+                          />
+                          {filteredFarmers.length === 0 && <div className="text-gray-400 text-sm">No farmers found</div>}
+                          {filteredFarmers.map(farmer => (
+                            <label key={farmer._id} className="flex items-center gap-2 mb-1 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={selectedFarmerIds.includes(farmer._id)}
+                                onChange={e => {
+                                  if (e.target.checked) {
+                                    setSelectedFarmerIds(ids => [...ids, farmer._id]);
+                                  } else {
+                                    setSelectedFarmerIds(ids => ids.filter(id => id !== farmer._id));
+                                  }
+                                }}
+                              />
+                              <span>{farmer.name} <span className="text-xs text-gray-400">({farmer.email})</span></span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   
                   {formData.type === 'carousel' && (
                     <>
@@ -586,7 +665,7 @@ const AdminCommunication = () => {
                       </div>
                       
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={() => setViewAnnouncement(announcement)}>
                           <Eye className="w-4 h-4" />
                         </Button>
                         <Button 
@@ -859,6 +938,47 @@ const AdminCommunication = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Announcement Details Dialog */}
+      {viewAnnouncement && (
+        <Dialog open={!!viewAnnouncement} onOpenChange={() => setViewAnnouncement(null)}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Announcement Details</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2">
+              <div className="font-bold text-lg">{viewAnnouncement.title}</div>
+              <div className="text-gray-700">{viewAnnouncement.content}</div>
+              <div className="flex gap-2 text-sm">
+                <Badge>{viewAnnouncement.type}</Badge>
+                <Badge>{viewAnnouncement.priority}</Badge>
+                <Badge>{viewAnnouncement.status}</Badge>
+              </div>
+              {viewAnnouncement.type === 'carousel' && viewAnnouncement.image && (
+                <img src={viewAnnouncement.image} alt="Carousel" className="rounded shadow max-h-40" />
+              )}
+              <div className="text-xs text-gray-500">
+                <div>Publish Date: {viewAnnouncement.schedule && viewAnnouncement.schedule.publishAt ? new Date(viewAnnouncement.schedule.publishAt).toLocaleString() : 'N/A'}</div>
+                {viewAnnouncement.targetAudience && viewAnnouncement.targetAudience.length > 0 && (
+                  <div>Audience: {viewAnnouncement.targetAudience.join(', ')}</div>
+                )}
+                {viewAnnouncement.targetUsers && viewAnnouncement.targetUsers.length > 0 && (
+                  <div>Targeted Farmers: {viewAnnouncement.targetUsers.length}</div>
+                )}
+                {viewAnnouncement.targetRegions && viewAnnouncement.targetRegions.length > 0 && (
+                  <div>Regions: {viewAnnouncement.targetRegions.join(', ')}</div>
+                )}
+                {viewAnnouncement.targetUrl && (
+                  <div>Target URL: <a href={viewAnnouncement.targetUrl} className="text-blue-600 underline" target="_blank" rel="noopener noreferrer">{viewAnnouncement.targetUrl}</a></div>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-4 mt-4">
+              <Button variant="outline" onClick={() => setViewAnnouncement(null)}>Close</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };
