@@ -2,6 +2,7 @@ const Order = require('../models/Order');
 const Product = require('../models/Product');
 const User = require('../models/User');
 const Address = require('../models/Address');
+const mongoose = require('mongoose');
 
 // Create a new order
 const createOrder = async (req, res) => {
@@ -386,9 +387,10 @@ const getFarmerOrders = async (req, res) => {
     const { page = 1, limit = 10, status } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const query = { 'farmerOrders.farmer': req.user.id };
+    // Updated query: find orders where any item.farmer matches the farmer's ID
+    const query = { 'items.farmer': new mongoose.Types.ObjectId(req.user.id) };
     if (status && status !== 'all') {
-      query['farmerOrders.status'] = status;
+      query['items.status'] = status;
     }
 
     const orders = await Order.find(query)
@@ -406,12 +408,12 @@ const getFarmerOrders = async (req, res) => {
 
     res.json({
       success: true,
-      orders,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages,
+      data: {
+        docs: orders,
         total,
-        limit: parseInt(limit)
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages
       }
     });
   } catch (error) {

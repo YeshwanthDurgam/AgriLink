@@ -115,6 +115,18 @@ const AdminCommunication = () => {
   const [farmerSearch, setFarmerSearch] = useState('');
   const [unreadMessages, setUnreadMessages] = useState<{ [farmerId: string]: boolean }>({});
 
+  // System Notifications state
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notificationForm, setNotificationForm] = useState({
+    title: '',
+    content: '',
+    recipientType: 'all', // all, farmers, buyers, select
+    selectedUserIds: [] as string[],
+  });
+  const [userSearch, setUserSearch] = useState('');
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
   // Persist active tab in localStorage
   useEffect(() => {
     const savedTab = localStorage.getItem('adminCommActiveTab');
@@ -399,6 +411,80 @@ const AdminCommunication = () => {
       default: return 'bg-gray-100 text-gray-800';
     }
   };
+
+  // Fetch all users for Select Users
+  const fetchAllUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const farmersRes = await apiService.get('/admin/farmers?limit=100');
+      const buyersRes = await apiService.get('/admin/customers?limit=100');
+      const farmers = farmersRes.data?.data?.docs || farmersRes.data?.docs || [];
+      const buyers = buyersRes.data?.data?.docs || buyersRes.data?.docs || [];
+      setAllUsers([
+        ...farmers.map((u: any) => ({ ...u, role: 'farmer' })),
+        ...buyers.map((u: any) => ({ ...u, role: 'buyer' })),
+      ]);
+    } catch (err) {
+      toast.error('Failed to load users');
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // Fetch notifications (announcements of type system_notification)
+  const fetchNotifications = async () => {
+    try {
+      const res = await apiService.get('/admin/communication/announcements?type=system_notification');
+      setNotifications(res.data?.docs || []);
+    } catch (err) {
+      setNotifications([]);
+    }
+  };
+
+  // Filtered users for select
+  const filteredUsers = useMemo(() => {
+    const search = userSearch.trim().toLowerCase();
+    return allUsers.filter(u =>
+      u.name.toLowerCase().includes(search) ||
+      u.email.toLowerCase().includes(search)
+    );
+  }, [allUsers, userSearch]);
+
+  // Handle notification form submit
+  const handleCreateNotification = async () => {
+    try {
+      const payload: any = {
+        title: notificationForm.title,
+        content: notificationForm.content,
+        type: 'system_notification',
+        priority: 'medium',
+        schedule: { publishAt: new Date().toISOString() },
+        status: 'active',
+        targetAudience: [],
+        targetUsers: [],
+      };
+      if (notificationForm.recipientType === 'all') payload.targetAudience = ['all'];
+      else if (notificationForm.recipientType === 'farmers') payload.targetAudience = ['farmers'];
+      else if (notificationForm.recipientType === 'buyers') payload.targetAudience = ['buyers'];
+      else if (notificationForm.recipientType === 'select') payload.targetUsers = notificationForm.selectedUserIds;
+      await apiService.post('/admin/communication/announcements', payload);
+      toast.success('Notification sent!');
+      setNotificationForm({ title: '', content: '', recipientType: 'all', selectedUserIds: [] });
+      fetchNotifications();
+    } catch (err) {
+      toast.error('Failed to send notification');
+    }
+  };
+
+  // Fetch notifications on tab open
+  useEffect(() => {
+    if (activeTab === 'notifications') fetchNotifications();
+  }, [activeTab]);
+
+  // Fetch users when needed
+  useEffect(() => {
+    if (activeTab === 'notifications' && notificationForm.recipientType === 'select') fetchAllUsers();
+  }, [activeTab, notificationForm.recipientType]);
 
   if (loading) {
     return (
@@ -803,8 +889,79 @@ const AdminCommunication = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-gray-500 py-8 text-center">
-                Coming soon: View and send system-wide notifications to users.
+              <div className="mb-6">
+                <div className="font-semibold mb-2">Send Notification</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Title</Label>
+                    <Input value={notificationForm.title} onChange={e => setNotificationForm(f => ({ ...f, title: e.target.value }))} placeholder="Enter notification title" />
+                  </div>
+                  <div>
+                    <Label>Recipients</Label>
+                    <div className="flex gap-4 mt-1">
+                      <label className="flex items-center gap-2">
+                        <input type="radio" name="notifRecipientType" value="all" checked={notificationForm.recipientType === 'all'} onChange={() => setNotificationForm(f => ({ ...f, recipientType: 'all', selectedUserIds: [] }))} />
+                        All Users
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="radio" name="notifRecipientType" value="farmers" checked={notificationForm.recipientType === 'farmers'} onChange={() => setNotificationForm(f => ({ ...f, recipientType: 'farmers', selectedUserIds: [] }))} />
+                        All Farmers
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="radio" name="notifRecipientType" value="buyers" checked={notificationForm.recipientType === 'buyers'} onChange={() => setNotificationForm(f => ({ ...f, recipientType: 'buyers', selectedUserIds: [] }))} />
+                        All Buyers
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="radio" name="notifRecipientType" value="select" checked={notificationForm.recipientType === 'select'} onChange={() => setNotificationForm(f => ({ ...f, recipientType: 'select' }))} />
+                        Select Users
+                      </label>
+                    </div>
+                    {notificationForm.recipientType === 'select' && (
+                      <div className="mt-2 border rounded p-2 max-h-40 overflow-y-auto bg-gray-50">
+                        <Input placeholder="Search users..." value={userSearch} onChange={e => setUserSearch(e.target.value)} className="mb-2" />
+                        {loadingUsers ? <div>Loading...</div> : filteredUsers.length === 0 ? <div className="text-gray-400 text-sm">No users found</div> : filteredUsers.map(user => (
+                          <label key={user._id} className="flex items-center gap-2 mb-1 cursor-pointer">
+                            <input type="checkbox" checked={notificationForm.selectedUserIds.includes(user._id)} onChange={e => {
+                              if (e.target.checked) setNotificationForm(f => ({ ...f, selectedUserIds: [...f.selectedUserIds, user._id] }));
+                              else setNotificationForm(f => ({ ...f, selectedUserIds: f.selectedUserIds.filter(id => id !== user._id) }));
+                            }} />
+                            <span>{user.name} <span className="text-xs text-gray-400">({user.email}, {user.role})</span></span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Content</Label>
+                    <Textarea value={notificationForm.content} onChange={e => setNotificationForm(f => ({ ...f, content: e.target.value }))} placeholder="Enter notification content" rows={3} />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-4">
+                  <Button onClick={handleCreateNotification} disabled={!notificationForm.title.trim() || !notificationForm.content.trim() || (notificationForm.recipientType === 'select' && notificationForm.selectedUserIds.length === 0)}>
+                    <Send className="w-4 h-4 mr-2" />
+                    Send Notification
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <div className="font-semibold mb-2">Sent Notifications</div>
+                <div className="space-y-3">
+                  {notifications.map(notif => (
+                    <div key={notif._id} className="border rounded p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold">{notif.title}</span>
+                        <Badge>{notif.priority}</Badge>
+                        <Badge>{notif.status}</Badge>
+                      </div>
+                      <div className="text-gray-700 text-sm mb-1">{notif.content}</div>
+                      <div className="text-xs text-gray-500 flex gap-4">
+                        <span>Recipients: {notif.targetAudience?.join(', ') || (notif.targetUsers?.length ? `${notif.targetUsers.length} users` : 'N/A')}</span>
+                        <span>Sent: {notif.schedule?.publishAt ? new Date(notif.schedule.publishAt).toLocaleString() : 'N/A'}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {notifications.length === 0 && <div className="text-gray-400 text-sm">No notifications sent yet.</div>}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -925,7 +1082,7 @@ const AdminCommunication = () => {
                 </div>
               </>
             )}
-
+            
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setEditingAnnouncement(null)}>
                 Cancel

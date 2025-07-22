@@ -25,7 +25,8 @@ const announcementSchema = new mongoose.Schema({
       'system_maintenance',
       'policy_change',
       'emergency',
-      'carousel' // Added carousel type
+      'carousel', // Added carousel type
+      'system_notification', // Added for system notifications
     ],
     default: 'general'
   },

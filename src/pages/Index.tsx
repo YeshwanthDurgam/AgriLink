@@ -76,8 +76,9 @@ const Index = () => {
     // Fetch carousel announcements from backend
     (async () => {
       try {
-        const res = await apiService.get('/admin/communication/announcements?type=carousel&status=active');
-        setCarouselAnnouncements(res.data?.docs || res.data || []);
+        const res = await apiService.get('/announcements?type=carousel&status=active');
+        console.log('Carousel API response:', res); // Debug log
+        setCarouselAnnouncements(res.docs || []);
       } catch (err) {
         setCarouselAnnouncements([]);
       }

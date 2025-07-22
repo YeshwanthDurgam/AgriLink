@@ -39,6 +39,8 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { apiService } from '@/lib/api';
 import { useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getPrimaryImageUrl } from '@/lib/utils';
 
 interface Message {
   _id: string;
@@ -54,118 +56,56 @@ const ADMIN_ID = "686908204944785133a50bbc";
 
 const FarmerDashboard = () => {
   const { user } = useAuth();
-  
-  // Mock data - in real app, this would come from API
-  const [dashboardData] = useState({
-    stats: {
-      totalProducts: 12,
-      activeOrders: 8,
-      monthlyRevenue: 25600,
-      averageRating: 4.7,
-      totalCustomers: 45,
-      pendingDeliveries: 3,
-      lowStockItems: 2,
-      thisWeekOrders: 15
-    },
-    revenueData: {
-      thisWeek: 8500,
-      lastWeek: 7200,
-      thisMonth: 25600,
-      lastMonth: 22400
-    },
-    recentProducts: [
-      {
-        id: '1',
-        name: 'Organic Tomatoes',
-        category: 'Vegetables',
-        price: 45,
-        quantity: 150,
-        status: 'active',
-        orders: 23,
-        rating: 4.8,
-        image: '🍅'
-      },
-      {
-        id: '2',
-        name: 'Fresh Spinach',
-        category: 'Vegetables',
-        price: 30,
-        quantity: 0,
-        status: 'out_of_stock',
-        orders: 15,
-        rating: 4.6,
-        image: '🥬'
-      },
-      {
-        id: '3',
-        name: 'Wheat Seeds',
-        category: 'Seeds',
-        price: 85,
-        quantity: 200,
-        status: 'pending_approval',
-        orders: 0,
-        rating: 0,
-        image: '🌾'
-      },
-      {
-        id: '4',
-        name: 'Fresh Milk',
-        category: 'Dairy',
-        price: 60,
-        quantity: 50,
-        status: 'active',
-        orders: 8,
-        rating: 4.9,
-        image: '🥛'
-      }
-    ],
-    recentOrders: [
-      {
-        id: 'ORD001',
-        product: 'Organic Tomatoes',
-        buyer: 'Raj Restaurant',
-        quantity: 25,
-        amount: 1125,
-        status: 'confirmed',
-        date: '2024-06-26',
-        deliveryDate: '2024-06-28',
-        priority: 'high'
-      },
-      {
-        id: 'ORD002',
-        product: 'Fresh Spinach',
-        buyer: 'Green Grocers',
-        quantity: 10,
-        amount: 300,
-        status: 'delivered',
-        date: '2024-06-25',
-        deliveryDate: '2024-06-27',
-        priority: 'medium'
-      },
-      {
-        id: 'ORD003',
-        product: 'Fresh Milk',
-        buyer: 'Daily Dairy',
-        quantity: 15,
-        amount: 900,
-        status: 'pending',
-        date: '2024-06-26',
-        deliveryDate: '2024-06-29',
-        priority: 'low'
-      }
-    ],
-    topProducts: [
-      { name: 'Organic Tomatoes', sales: 1250, growth: 12 },
-      { name: 'Fresh Spinach', sales: 890, growth: -5 },
-      { name: 'Fresh Milk', sales: 720, growth: 8 },
-      { name: 'Wheat Seeds', sales: 450, growth: 15 }
-    ],
-    alerts: [
-      { type: 'stock', message: 'Fresh Spinach is out of stock', priority: 'high' },
-      { type: 'order', message: 'New order received from Raj Restaurant', priority: 'medium' },
-      { type: 'delivery', message: 'Delivery scheduled for tomorrow', priority: 'low' }
-    ]
-  });
+
+  // Fetch products for this farmer
+  const {
+    data: productsData,
+    isLoading: isLoadingProducts,
+    error: productsError
+  } = useQuery<{ products: any[] }>(
+    {
+      queryKey: ['farmer-products', user?.id],
+      queryFn: () => user?.id ? apiService.getProducts({ farmer: user.id }) : Promise.resolve({ products: [] }),
+      enabled: !!user?.id,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      placeholderData: { products: [] }
+    }
+  );
+  const products = productsData?.products || [];
+
+  // Fetch all orders for this farmer using the correct endpoint
+  const {
+    data: ordersData,
+    isLoading: isLoadingOrders,
+    error: ordersError
+  } = useQuery<{ success: boolean; data: any }>(
+    {
+      queryKey: ['farmer-orders', user?.id],
+      queryFn: () => apiService.get('/orders/farmer/orders?page=1&limit=100'),
+      enabled: !!user?.id,
+      staleTime: 5 * 60 * 1000,
+      placeholderData: { success: true, data: { docs: [], total: 0 } }
+    }
+  );
+  // Extract orders from the response
+  const orders = ordersData?.data?.docs || [];
+
+  // Calculate stats
+  const totalProducts = products.length;
+  const activeProducts = products.filter(p => p.status === 'active').length;
+  const totalOrders = orders.length;
+  const monthlyRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0);
+  const averageRating = products.length ? (
+    products.reduce((sum, p) => sum + (p.averageRating || 0), 0) / products.length
+  ).toFixed(1) : 0;
+  const pendingDeliveries = orders.filter(order => order.status === 'pending').length;
+  const lowStockItems = products.filter(p => p.quantity < 10).length;
+  const thisWeekOrders = orders.length; // For demo, use all orders
+  const totalCustomers = new Set(orders.map(order => order.buyer)).size;
+
+  const TAB_KEY = 'farmerDashboardActiveTab';
+  const getInitialTab = () => localStorage.getItem(TAB_KEY) || 'overview';
+  const [activeTab, setActiveTab] = useState(getInitialTab);
 
   // Messaging state for farmer
   const [messages, setMessages] = useState<Message[]>([]);
@@ -262,14 +202,47 @@ const FarmerDashboard = () => {
     }
   };
 
-  const TAB_KEY = 'farmerDashboardActiveTab';
-  const [activeTab, setActiveTab] = useState(() => localStorage.getItem(TAB_KEY) || 'overview');
   useEffect(() => {
     localStorage.setItem(TAB_KEY, activeTab);
   }, [activeTab]);
 
   // Check if there are unread messages
   const hasUnreadMessages = messages.some(msg => msg.sender !== user?.id);
+
+  if ((isLoadingProducts && !products.length) || (isLoadingOrders && !orders.length) || !user) {
+    return <div className="flex justify-center items-center h-64">Loading dashboard...</div>;
+  }
+
+  // Add debug logs before rendering
+  console.log('Orders:', orders);
+  console.log('User ID:', user.id);
+
+  // Now define dashboardData after data is loaded
+  const dashboardData = {
+    stats: {
+      totalProducts,
+      activeOrders: totalOrders,
+      monthlyRevenue,
+      averageRating,
+      totalCustomers,
+      pendingDeliveries,
+      lowStockItems,
+      thisWeekOrders
+    },
+    revenueData: {
+      thisWeek: monthlyRevenue, // For demo
+      lastWeek: 0,
+      thisMonth: monthlyRevenue,
+      lastMonth: 0
+    },
+    recentProducts: products,
+    recentOrders: orders,
+    topProducts: products,
+    alerts: [] // Provide a default alerts array
+  };
+
+  // Add debug log for recentOrders before rendering
+  console.log('Recent Orders (Overview):', dashboardData.recentOrders);
 
   return (
     <div className="bg-gray-50">
@@ -392,37 +365,42 @@ const FarmerDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {dashboardData.recentOrders.map((order) => (
-                      <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-semibold">{order.id}</h4>
-                            {getStatusBadge(order.status)}
-                            {getPriorityBadge(order.priority)}
+                    {dashboardData.recentOrders.length === 0 ? (
+                      <div className="text-gray-500 py-8 text-center">No recent orders found for you yet.</div>
+                    ) : (
+                      dashboardData.recentOrders.slice(0, 5).map(order => (
+                        <div key={order._id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-semibold">{order.orderNumber || order._id}</h4>
+                              <span className="text-xs text-gray-600">{order.orderStatus || order.status}</span>
+                            </div>
+                            <div className="text-sm text-gray-600 mb-1">
+                              {order.buyer?.name || 'Unknown Buyer'}
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                              <span className="flex items-center gap-1">
+                                {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                ₹{order.total || 0}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-xs text-gray-700">
+                              Items:
+                              <ul className="ml-4 list-disc">
+                                {(order.items || []).filter(item => (item.farmer?.$oid || item.farmer) === user.id).map(item => (
+                                  <li key={item._id || item.product}>
+                                    {item.name} - {item.quantity} {item.unit} @ ₹{item.price}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-600 mb-1">
-                            {order.product} • {order.buyer}
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-gray-500">
-                            <span className="flex items-center gap-1">
-                              <Package className="w-3 h-3" />
-                              {order.quantity} kg
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <IndianRupee className="w-3 h-3" />
-                              {order.amount}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {new Date(order.date).toLocaleDateString()}
-                            </span>
-                          </div>
+                          <Button variant="outline" size="sm">View Details</Button>
                         </div>
-                        <Button variant="outline" size="sm">
-                          View Details
-                        </Button>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -563,51 +541,38 @@ const FarmerDashboard = () => {
                     <CardTitle>Order Management</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
-                      {dashboardData.recentOrders.map((order) => (
-                        <div key={order.id} className="border rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-semibold">{order.id}</h4>
-                              {getStatusBadge(order.status)}
-                              {getPriorityBadge(order.priority)}
+                    {orders.length === 0 ? (
+                      <div className="text-gray-500 py-8 text-center">No orders found for you yet.</div>
+                    ) : (
+                      <div className="space-y-4">
+                        {orders.map(order => (
+                          <div key={order._id} className="border rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <span className="font-semibold">Order Number:</span> {order.orderNumber || order._id}
+                              </div>
+                              <div className="text-sm text-gray-600">{order.orderStatus || order.status}</div>
                             </div>
-                            <div className="text-right">
-                              <div className="font-semibold">₹{order.amount}</div>
-                              <div className="text-sm text-gray-500">{order.quantity} kg</div>
+                            <div className="text-sm text-gray-700 mb-2">
+                              <span className="font-semibold">Created:</span> {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
                             </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <span className="text-gray-500">Product:</span>
-                              <div className="font-medium">{order.product}</div>
+                            <div className="mb-2">
+                              <span className="font-semibold">Items:</span>
+                              <ul className="ml-4 list-disc">
+                                {(order.items || []).filter(item => (item.farmer?.$oid || item.farmer) === user.id).map(item => (
+                                  <li key={item._id || item.product}>
+                                    {item.name} - {item.quantity} {item.unit} @ ₹{item.price}
+                                  </li>
+                                ))}
+                              </ul>
                             </div>
-                            <div>
-                              <span className="text-gray-500">Buyer:</span>
-                              <div className="font-medium">{order.buyer}</div>
-                            </div>
-                            <div>
-                              <span className="text-gray-500">Order Date:</span>
-                              <div className="font-medium">{new Date(order.date).toLocaleDateString()}</div>
-                            </div>
-                            <div>
-                              <span className="text-gray-500">Delivery Date:</span>
-                              <div className="font-medium">{new Date(order.deliveryDate).toLocaleDateString()}</div>
+                            <div className="text-sm text-gray-700">
+                              <span className="font-semibold">Total:</span> ₹{order.total || 0}
                             </div>
                           </div>
-                          <div className="flex gap-2 mt-4">
-                            <Button size="sm" className="flex-1">
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              Confirm
-                            </Button>
-                            <Button variant="outline" size="sm" className="flex-1">
-                              <Truck className="w-4 h-4 mr-1" />
-                              Schedule Delivery
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
