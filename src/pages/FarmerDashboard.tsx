@@ -50,12 +50,17 @@ interface Message {
   receiverRole: string;
   content: string;
   createdAt: string;
+  read: boolean; // Added read property
 }
 
 const ADMIN_ID = "686908204944785133a50bbc";
 
 const FarmerDashboard = () => {
   const { user } = useAuth();
+
+  if (!user) {
+    return <div className="flex justify-center items-center h-64">Loading dashboard...</div>;
+  }
 
   // Fetch products for this farmer
   const {
@@ -105,7 +110,7 @@ const FarmerDashboard = () => {
 
   const TAB_KEY = 'farmerDashboardActiveTab';
   const getInitialTab = () => localStorage.getItem(TAB_KEY) || 'overview';
-  const [activeTab, setActiveTab] = useState(getInitialTab);
+  const [activeTab, setActiveTab] = useState(() => getInitialTab());
 
   // Messaging state for farmer
   const [messages, setMessages] = useState<Message[]>([]);
@@ -206,16 +211,27 @@ const FarmerDashboard = () => {
     localStorage.setItem(TAB_KEY, activeTab);
   }, [activeTab]);
 
-  // Check if there are unread messages
-  const hasUnreadMessages = messages.some(msg => msg.sender !== user?.id);
+  // Normalize messages: if read is missing, treat as read
+  const normalizedMessages = messages.map(msg => ({
+    ...msg,
+    read: typeof msg.read === 'boolean' ? msg.read : true
+  }));
+  // Fix unread messages indicator
+  const hasUnreadMessages = normalizedMessages.some(
+    msg => msg.sender !== user?.id && msg.read === false
+  );
 
-  if ((isLoadingProducts && !products.length) || (isLoadingOrders && !orders.length) || !user) {
+  // Add debug logs for errors
+  if (productsError) console.error('Failed to load products:', productsError);
+  if (ordersError) console.error('Failed to load orders:', ordersError);
+
+  // Only block dashboard if user is missing or both products and orders failed to load
+  if (!user || (productsError && ordersError)) {
+    return <div className="flex justify-center items-center h-64">Failed to load dashboard. Please try again later.</div>;
+  }
+  if ((isLoadingProducts && !productsError) || (isLoadingOrders && !ordersError)) {
     return <div className="flex justify-center items-center h-64">Loading dashboard...</div>;
   }
-
-  // Add debug logs before rendering
-  console.log('Orders:', orders);
-  console.log('User ID:', user.id);
 
   // Now define dashboardData after data is loaded
   const dashboardData = {
@@ -241,8 +257,19 @@ const FarmerDashboard = () => {
     alerts: [] // Provide a default alerts array
   };
 
-  // Add debug log for recentOrders before rendering
-  console.log('Recent Orders (Overview):', dashboardData.recentOrders);
+  // Add this after user and activeTab are defined
+  const adminId = "686908204944785133a50bbc"; // Replace with your actual admin's ID
+  useEffect(() => {
+    if (activeTab === 'messaging' && user?.id && adminId) {
+      (async () => {
+        try {
+          await apiService.post('/messages/mark-read', { userId: user.id, partnerId: adminId });
+        } catch (err) {
+          console.error('Failed to mark messages as read:', err);
+        }
+      })();
+    }
+  }, [activeTab, user?.id, adminId]);
 
   return (
     <div className="bg-gray-50">
@@ -485,50 +512,54 @@ const FarmerDashboard = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {dashboardData.recentProducts.map((product) => (
-                    <div key={product.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="text-2xl">{product.image}</div>
-                        {getStatusBadge(product.status)}
-                      </div>
-                      <h4 className="font-semibold mb-2">{product.name}</h4>
-                      <div className="space-y-2 text-sm text-gray-600">
-                        <div className="flex justify-between">
-                          <span>Price:</span>
-                          <span className="font-medium">₹{product.price}/kg</span>
+                {productsError ? (
+                  <div className="text-red-500">Failed to load products.</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {dashboardData.recentProducts.map((product) => (
+                      <div key={product.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="text-2xl">{product.image}</div>
+                          {getStatusBadge(product.status)}
                         </div>
-                        <div className="flex justify-between">
-                          <span>Stock:</span>
-                          <span className={product.quantity === 0 ? 'text-red-600 font-medium' : 'font-medium'}>
-                            {product.quantity} kg
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Orders:</span>
-                          <span className="font-medium">{product.orders}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Rating:</span>
-                          <div className="flex items-center gap-1">
-                            <Star className="w-3 h-3 text-yellow-500 fill-current" />
-                            <span className="font-medium">{product.rating}</span>
+                        <h4 className="font-semibold mb-2">{product.name}</h4>
+                        <div className="space-y-2 text-sm text-gray-600">
+                          <div className="flex justify-between">
+                            <span>Price:</span>
+                            <span className="font-medium">₹{product.price}/kg</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Stock:</span>
+                            <span className={product.quantity === 0 ? 'text-red-600 font-medium' : 'font-medium'}>
+                              {product.quantity} kg
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Orders:</span>
+                            <span className="font-medium">{product.orders}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Rating:</span>
+                            <div className="flex items-center gap-1">
+                              <Star className="w-3 h-3 text-yellow-500 fill-current" />
+                              <span className="font-medium">{product.rating}</span>
+                            </div>
                           </div>
                         </div>
+                        <div className="flex gap-2 mt-4">
+                          <Button variant="outline" size="sm" className="flex-1">
+                            <Eye className="w-4 h-4 mr-1" />
+                            View
+                          </Button>
+                          <Button variant="outline" size="sm" className="flex-1">
+                            <Edit className="w-4 h-4 mr-1" />
+                            Edit
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex gap-2 mt-4">
-                        <Button variant="outline" size="sm" className="flex-1">
-                          <Eye className="w-4 h-4 mr-1" />
-                          View
-                        </Button>
-                        <Button variant="outline" size="sm" className="flex-1">
-                          <Edit className="w-4 h-4 mr-1" />
-                          Edit
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -536,45 +567,49 @@ const FarmerDashboard = () => {
           <TabsContent value="orders" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Order Management</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {orders.length === 0 ? (
-                      <div className="text-gray-500 py-8 text-center">No orders found for you yet.</div>
-                    ) : (
-                      <div className="space-y-4">
-                        {orders.map(order => (
-                          <div key={order._id} className="border rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <div>
-                                <span className="font-semibold">Order Number:</span> {order.orderNumber || order._id}
+                {ordersError ? (
+                  <div className="text-red-500">Failed to load orders.</div>
+                ) : (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Order Management</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {orders.length === 0 ? (
+                        <div className="text-gray-500 py-8 text-center">No orders found for you yet.</div>
+                      ) : (
+                        <div className="space-y-4">
+                          {orders.map(order => (
+                            <div key={order._id} className="border rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <div>
+                                  <span className="font-semibold">Order Number:</span> {order.orderNumber || order._id}
+                                </div>
+                                <div className="text-sm text-gray-600">{order.orderStatus || order.status}</div>
                               </div>
-                              <div className="text-sm text-gray-600">{order.orderStatus || order.status}</div>
+                              <div className="text-sm text-gray-700 mb-2">
+                                <span className="font-semibold">Created:</span> {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
+                              </div>
+                              <div className="mb-2">
+                                <span className="font-semibold">Items:</span>
+                                <ul className="ml-4 list-disc">
+                                  {(order.items || []).filter(item => (item.farmer?.$oid || item.farmer) === user.id).map(item => (
+                                    <li key={item._id || item.product}>
+                                      {item.name} - {item.quantity} {item.unit} @ ₹{item.price}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                              <div className="text-sm text-gray-700">
+                                <span className="font-semibold">Total:</span> ₹{order.total || 0}
+                              </div>
                             </div>
-                            <div className="text-sm text-gray-700 mb-2">
-                              <span className="font-semibold">Created:</span> {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
-                            </div>
-                            <div className="mb-2">
-                              <span className="font-semibold">Items:</span>
-                              <ul className="ml-4 list-disc">
-                                {(order.items || []).filter(item => (item.farmer?.$oid || item.farmer) === user.id).map(item => (
-                                  <li key={item._id || item.product}>
-                                    {item.name} - {item.quantity} {item.unit} @ ₹{item.price}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                            <div className="text-sm text-gray-700">
-                              <span className="font-semibold">Total:</span> ₹{order.total || 0}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
 
               <Card>
@@ -624,7 +659,7 @@ const FarmerDashboard = () => {
                     <div>Loading...</div>
                   ) : (
                     <ul className="space-y-2">
-                      {messages.map(msg => {
+                      {normalizedMessages.map(msg => {
                         const isSent = msg.sender === user.id;
                         return (
                           <li key={msg._id} className={`flex ${isSent ? 'justify-end' : 'justify-start'}`}>

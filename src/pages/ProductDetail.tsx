@@ -50,8 +50,8 @@ const ProductDetail = () => {
   }
 
   // Gallery logic (defensive)
-  const images = Array.isArray(product.images) && product.images.length > 0
-    ? product.images.map(img => ({
+  const images = Array.isArray((product as any).images) && (product as any).images.length > 0
+    ? (product as any).images.map((img: any) => ({
         ...img,
         id: img.id || img._id || `img-${Math.random()}`
       }))
@@ -59,31 +59,29 @@ const ProductDetail = () => {
   const mainImage = getImageUrl(images[selectedImageIndex]?.url) || '/placeholder.svg';
 
   // Defensive values for all fields
-  const price = product?.price ?? product?.basePrice ?? 0;
-  const quantity = product?.quantity ?? 0;
-  const unit = product?.unit ?? '';
-  const harvestDate = product?.harvestDate ? new Date(product.harvestDate).toLocaleDateString() : 'N/A';
-  const farmerName = product?.farmer?.name || 'Unknown';
-  const farmerLocation = product?.farmer?.location || 'Location not set';
-  const farmerRating = product?.farmer?.rating ?? 0;
-  const qualityMetrics = product?.qualityMetrics || {};
-  const isOrganic = product?.organic;
-  const isInStock = (product?.status === 'active') && quantity > 0;
-  const certifications = Array.isArray(product?.certifications) ? product.certifications : [];
-  const deliveryTime = product?.deliveryTime ?? 24;
-  const description = product?.description || '';
-  const category = product?.category || '';
+  const price = (product as any)?.price ?? (product as any)?.basePrice ?? 0;
+  const quantity = (product as any)?.quantity ?? 0;
+  const unit = (product as any)?.unit ?? '';
+  const harvestDate = (product as any)?.harvestDate ? new Date((product as any).harvestDate).toLocaleDateString() : 'N/A';
+  const farmerName = (product as any)?.farmer?.name || 'Unknown';
+  const farmerLocation = (product as any)?.farmer?.location || 'Location not set';
+  const farmerRating = (product as any)?.farmer?.rating ?? 0;
+  const qualityMetrics = (product as any)?.qualityMetrics || {};
+  const isOrganic = (product as any)?.organic;
+  const isInStock = ((product as any)?.status === 'active') && quantity > 0;
+  const certifications = Array.isArray((product as any)?.certifications) ? (product as any).certifications : [];
+  const deliveryTime = (product as any)?.deliveryTime ?? 24;
+  const description = (product as any)?.description || '';
+  const category = (product as any)?.category || '';
 
   const handleAddToCart = () => {
     if (product) {
       toast.success(`${product?.name || 'Product'} added to cart!`);
-      console.log('Added to cart:', product?.id);
     }
   };
 
   const handleFlagProduct = () => {
     toast.info('Product flagged for review');
-    console.log('Product flagged:', product?.id);
   };
 
   return (

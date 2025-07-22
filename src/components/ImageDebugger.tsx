@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { getImageUrl, debugImageUrl } from '@/lib/utils';
+import { getImageUrl } from '@/lib/utils';
 
 interface ImageDebuggerProps {
   imagePath: string;
@@ -22,27 +22,15 @@ const ImageDebugger = ({
   const handleImageLoad = () => {
     setImageLoaded(true);
     setImageError(false);
-    if (import.meta.env.DEV) {
-      console.log('✅ Image loaded successfully:', fullImageUrl);
-    }
   };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     setImageError(true);
     setImageLoaded(false);
-    if (import.meta.env.DEV) {
-      console.error('❌ Image failed to load:', fullImageUrl);
-      debugImageUrl(imagePath);
-    }
     // Fallback to placeholder
     const target = e.target as HTMLImageElement;
     target.src = fallbackSrc;
   };
-
-  // Debug logging in development
-  if (import.meta.env.DEV && !imageLoaded && !imageError) {
-    debugImageUrl(imagePath);
-  }
 
   return (
     <img

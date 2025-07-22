@@ -66,6 +66,7 @@ interface Message {
   receiverRole: string;
   content: string;
   createdAt: string;
+  read: boolean; // Added for read status
 }
 
 const AdminCommunication = () => {
@@ -486,6 +487,16 @@ const AdminCommunication = () => {
     if (activeTab === 'notifications' && notificationForm.recipientType === 'select') fetchAllUsers();
   }, [activeTab, notificationForm.recipientType]);
 
+  // Add useEffect to mark messages as read when admin opens a conversation
+  useEffect(() => {
+    if (activeTab === 'direct' && user?.id && selectedFarmer?._id) {
+      apiService.post('/messages/mark-read', { userId: user.id, partnerId: selectedFarmer._id });
+    }
+  }, [activeTab, user?.id, selectedFarmer?._id]);
+
+  // Fix unread messages indicator
+  const hasUnreadMessages = messages.some(msg => msg.sender !== user?.id && !msg.read);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -828,7 +839,7 @@ const AdminCommunication = () => {
                           onClick={() => setSelectedFarmer(farmer)}
                         >
                           <span className="font-medium">{farmer.name}</span>
-                          {unreadMessages[farmer._id] && (
+                          {hasUnreadMessages && (
                             <span className="inline-block w-2 h-2 bg-red-500 rounded-full ml-2"></span>
                           )}
                           <span className="block text-xs text-gray-500">{farmer.email}</span>

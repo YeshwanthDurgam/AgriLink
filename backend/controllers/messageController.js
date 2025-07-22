@@ -3,8 +3,7 @@ const User = require('../models/User');
 const Admin = require('../models/Admin');
 const mongoose = require('mongoose');
 
-// Send a message (admin <-> farmer)
-exports.sendMessage = async (req, res) => {
+const sendMessage = async (req, res) => {
   try {
     const { senderId, receiverId, senderRole, receiverRole, content } = req.body;
     if (!senderId || !receiverId || !senderRole || !receiverRole || !content) {
@@ -23,8 +22,7 @@ exports.sendMessage = async (req, res) => {
   }
 };
 
-// Get all conversations for a user (admin or farmer)
-exports.getConversations = async (req, res) => {
+const getConversations = async (req, res) => {
   try {
     const { userId, role } = req.query;
     if (!userId || !role) {
@@ -52,8 +50,7 @@ exports.getConversations = async (req, res) => {
   }
 };
 
-// Get all messages in a conversation (admin <-> farmer)
-exports.getMessagesInConversation = async (req, res) => {
+const getMessagesInConversation = async (req, res) => {
   try {
     const { userId, partnerId } = req.query;
     if (!userId || !partnerId) {
@@ -69,4 +66,26 @@ exports.getMessagesInConversation = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: 'Failed to get messages.', error: err.message });
   }
+};
+
+const markMessagesAsRead = async (req, res) => {
+  try {
+    const { userId, partnerId } = req.body;
+    console.log('Marking as read:', { userId, partnerId });
+    const result = await Message.updateMany(
+      { receiver: userId, sender: partnerId, read: false },
+      { $set: { read: true } }
+    );
+    console.log('Update result:', result);
+    res.json({ success: true, result });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to mark messages as read', error: error.message });
+  }
+};
+
+module.exports = {
+  sendMessage,
+  getConversations,
+  getMessagesInConversation,
+  markMessagesAsRead,
 }; 

@@ -50,16 +50,3 @@ export function getPrimaryImageUrl(images?: Array<{ url: string; alt?: string; i
   // If no primary image is marked, use the first image
   return getImageUrl(images[0].url);
 }
-
-/**
- * Debug function to log image URL construction (for development only)
- */
-export function debugImageUrl(imagePath: string): void {
-  if (import.meta.env.DEV) {
-    console.log('Image URL Debug:', {
-      originalPath: imagePath,
-      constructedUrl: getImageUrl(imagePath),
-      backendBaseUrl: BACKEND_BASE_URL
-    });
-  }
-}

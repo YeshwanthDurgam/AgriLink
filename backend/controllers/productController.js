@@ -7,8 +7,6 @@ const Review = require('../models/Review');
 // Create a new product
 const createProduct = async (req, res) => {
   try {
-    console.log('DEBUG createProduct - req.user:', req.user);
-    console.log('DEBUG createProduct - req.body:', req.body);
     const {
       name,
       description,
