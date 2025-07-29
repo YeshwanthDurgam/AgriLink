@@ -17,7 +17,7 @@ const productSchema = new mongoose.Schema({
   category: {
     type: String,
     required: true,
-    enum: ['Vegetables', 'Fruits', 'Grains', 'Herbs', 'Seeds', 'Dairy', 'Other']
+    enum: ['Vegetables', 'Fruits', 'Grains', 'Herbs & Spices', 'Seeds', 'Dairy', 'Other']
   },
   subcategory: {
     type: String,
@@ -51,6 +51,20 @@ const productSchema = new mongoose.Schema({
       default: 'INR'
     }
   }],
+  // --- DEALS & DISCOUNTS ---
+  deal: {
+    type: Boolean,
+    default: false
+  },
+  discount: {
+    type: Number, // percent discount (e.g., 10 for 10%)
+    min: 0,
+    max: 100,
+    default: 0
+  },
+  dealExpiresAt: {
+    type: Date
+  },
   unit: {
     type: String,
     required: true,

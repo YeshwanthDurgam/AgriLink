@@ -35,6 +35,8 @@ import AdminQualityControl from './components/AdminQualityControl';
 import AdminCommunication from './components/AdminCommunication';
 import AdminAnalytics from './components/AdminAnalytics';
 import DashboardLayout from './components/DashboardLayout';
+import CategoryPage from "./pages/CategoryPage";
+import WishlistPage from "./pages/WishlistPage";
 
 const queryClient = new QueryClient();
 
@@ -60,8 +62,10 @@ function App() {
               <Route path="/marketplace" element={<Marketplace />} />
               <Route path="/product/:id" element={<ProductDetail />} />
               <Route path="/categories" element={<Categories />} />
+              <Route path="/category/:categoryName" element={<CategoryPage />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/checkout" element={<Checkout />} />
+              <Route path="/wishlist" element={<WishlistPage />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/orders/:id" element={<Order />} />
               <Route path="/support" element={<Support />} />

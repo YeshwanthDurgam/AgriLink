@@ -15,15 +15,16 @@ app.use(cors({
 }));
 app.use(express.json());
 
-const uri = process.env.MONGO_URI || 'mongodb://localhost:27017/farm-to-table';
+// Use environment variable for MongoDB URI, fallback to local test database
+const uri = process.env.MONGO_URI || 'mongodb://localhost:27017/test';
 mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 const connection = mongoose.connection;
 connection.once('open', () => {
-  console.log("MongoDB database connection established successfully");
+  // console.log("MongoDB database connection established successfully");
 });
 
 connection.on('error', (err) => {
-  console.error('MongoDB connection error:', err);
+  // console.error('MongoDB connection error:', err);
 });
 
 app.get('/', (req, res) => {
@@ -42,10 +43,13 @@ app.use('/api/addresses', require('./routes/addresses'));
 app.use('/api/messages', require('./routes/messages'));
 app.use('/api/announcements', require('./routes/announcements'));
 
+app.use('/api/farmers', require('./routes/farmers'));
+app.use('/api/analytics', require('./routes/analytics'));
+
 app.use('/api/admin', require('./routes/admin'));
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.listen(port, () => {
-    console.log(`Server is running on port: ${port}`);
+    // console.log(`Server is running on port: ${port}`);
 }); 

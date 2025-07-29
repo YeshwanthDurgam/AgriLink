@@ -342,7 +342,7 @@ router.post('/:id/suspend', roleCheck('admin'), async (req, res) => {
 });
 
 // Reactivate farmer account
-router.post('/:id/reactivate', roleCheck('admin', 'admin'), async (req, res) => {
+router.post('/:id/reactivate', roleCheck('admin'), async (req, res) => {
   try {
     const farmer = await User.findById(req.params.id);
 

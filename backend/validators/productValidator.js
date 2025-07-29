@@ -220,7 +220,7 @@ const getProductsValidation = [
   
   query('category')
     .optional()
-    .isIn(['Vegetables', 'Fruits', 'Grains', 'Herbs', 'Seeds', 'Dairy', 'Other'])
+    .isIn(['Vegetables', 'Fruits', 'Grains', 'Herbs & Spices', 'Seeds', 'Dairy', 'Other'])
     .withMessage('Invalid category'),
   
   query('status')

@@ -20,8 +20,6 @@ const generateQRCode = async (secret, email) => {
     period: 30 // 30-second period
   });
   
-  console.log('🔗 OTP Auth URL:', otpauthUrl);
-  
   try {
     const qrCodeDataURL = await QRCode.toDataURL(otpauthUrl);
     return qrCodeDataURL;
@@ -65,20 +63,10 @@ const verifyBackupCode = (backupCodes, code) => {
   return false;
 };
 
-// Generate a test token for debugging
-const generateTestToken = (secret) => {
-  return speakeasy.totp({
-    secret: secret,
-    encoding: 'base32',
-    step: 30
-  });
-};
-
 module.exports = {
   generateSecret,
   generateQRCode,
   verifyToken,
   generateBackupCodes,
-  verifyBackupCode,
-  generateTestToken
+  verifyBackupCode
 }; 

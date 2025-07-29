@@ -22,13 +22,11 @@ export function getImageUrl(imagePath: string): string {
     return imagePath;
   }
   
-  // If the image path starts with '/', it's a relative path from the backend
-  if (imagePath.startsWith('/')) {
-    return `${BACKEND_BASE_URL}${imagePath}`;
-  }
+  // Normalize path to remove leading slashes and 'uploads/products'
+  const normalizedPath = imagePath.replace(/^\//, '').replace(/^uploads\/products\//, '');
   
-  // If it's just a filename, assume it's in the uploads/products directory
-  return `${BACKEND_BASE_URL}/uploads/products/${imagePath}`;
+  // Construct the final URL
+  return `${BACKEND_BASE_URL}/uploads/products/${normalizedPath}`;
 }
 
 /**
@@ -36,17 +34,13 @@ export function getImageUrl(imagePath: string): string {
  * @param images - Array of product images
  * @returns The URL of the primary image or a placeholder
  */
-export function getPrimaryImageUrl(images?: Array<{ url: string; alt?: string; isPrimary?: boolean }>): string {
+export function getPrimaryImageUrl(images: any[]): string {
   if (!images || images.length === 0) {
-    return '/placeholder.svg';
+    return '/placeholder.svg'; // Return a placeholder if no images exist
   }
-  
-  // Find the primary image
   const primaryImage = images.find(img => img.isPrimary);
-  if (primaryImage) {
-    return getImageUrl(primaryImage.url);
-  }
-  
-  // If no primary image is marked, use the first image
-  return getImageUrl(images[0].url);
+  const url = primaryImage ? primaryImage.url : images[0].url;
+
+  // Use the getImageUrl utility to construct the full path
+  return getImageUrl(url);
 }

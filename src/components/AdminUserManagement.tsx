@@ -34,7 +34,7 @@ interface User {
   location?: string;
   joinDate: string;
   isVerified: boolean;
-  status: 'active' | 'suspended' | 'pending';
+  accountStatus: 'active' | 'suspended' | 'banned' | 'pending_verification'; // Changed from 'status'
   stats?: {
     ordersPlaced?: number;
     totalSpent?: number;
@@ -53,7 +53,7 @@ const AdminUserManagement = () => {
   const [errorFarmers, setErrorFarmers] = useState('');
   const [errorBuyers, setErrorBuyers] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended' | 'pending'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended' | 'pending_verification' | 'banned'>('all'); // Corrected type and options
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editUserType, setEditUserType] = useState<'farmer' | 'buyer' | null>(null);
   const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', location: '' });
@@ -125,33 +125,41 @@ const AdminUserManagement = () => {
         } else if (action === 'suspend') {
           endpoint = `/admin/farmers/${userId}/suspend`;
         }
-        await apiService.post(endpoint);
-        updateUser = (users: User[]) =>
-          users.map(user =>
-            user._id === userId
-              ? {
-                  ...user,
-                  status: action === 'suspend' ? 'suspended' : 'active',
-                  isVerified: action === 'verify' ? true : user.isVerified
-                }
-              : user
-          );
-        setFarmers(updateUser);
+        const res = await apiService.post(endpoint); // Capture response
+        if (res.success) {
+          updateUser = (users: User[]) =>
+            users.map(user =>
+              user._id === userId
+                ? {
+                    ...user,
+                    accountStatus: action === 'suspend' ? 'suspended' : (action === 'activate' ? 'active' : user.accountStatus), // Corrected assignment
+                    isVerified: action === 'verify' ? true : user.isVerified
+                  }
+                : user
+            );
+          setFarmers(updateUser);
+        } else {
+          toast.error(res.message || 'Action failed');
+        }
       } else {
         // For buyers, keep existing logic (if any)
         endpoint = `/admin/customers/${userId}/${action}`;
-        await apiService.post(endpoint);
-        updateUser = (users: User[]) =>
-          users.map(user =>
-            user._id === userId
-              ? {
-                  ...user,
-                  status: action === 'suspend' ? 'suspended' : 'active',
-                  isVerified: action === 'verify' ? true : user.isVerified
-                }
-              : user
-          );
-        setBuyers(updateUser);
+        const res = await apiService.post(endpoint); // Capture response
+        if (res.success) {
+          updateUser = (users: User[]) =>
+            users.map(user =>
+              user._id === userId
+                ? {
+                    ...user,
+                    accountStatus: action === 'suspend' ? 'suspended' : (action === 'activate' ? 'active' : user.accountStatus), // Corrected assignment
+                    isVerified: action === 'verify' ? true : user.isVerified
+                  }
+                : user
+            );
+          setBuyers(updateUser);
+        } else {
+          toast.error(res.message || 'Action failed');
+        }
       }
       toast.success(`User ${action}d successfully`);
     } catch (err: unknown) {
@@ -250,14 +258,14 @@ const AdminUserManagement = () => {
   const filteredFarmers = farmers.filter(farmer => {
     const matchesSearch = farmer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          farmer.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || farmer.status === statusFilter;
+    const matchesStatus = statusFilter === 'all' || farmer.accountStatus === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const filteredBuyers = buyers.filter(buyer => {
     const matchesSearch = buyer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          buyer.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || buyer.status === statusFilter;
+    const matchesStatus = statusFilter === 'all' || buyer.accountStatus === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -265,7 +273,8 @@ const AdminUserManagement = () => {
     switch (status) {
       case 'active': return 'bg-green-100 text-green-800';
       case 'suspended': return 'bg-red-100 text-red-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'pending_verification': return 'bg-yellow-100 text-yellow-800'; // Added pending_verification
+      case 'banned': return 'bg-red-200 text-red-900'; // Added banned
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -287,8 +296,8 @@ const AdminUserManagement = () => {
             <h3 className="font-semibold">{user.name}</h3>
             <p className="text-sm text-gray-600">{user.email}</p>
             <div className="flex items-center gap-2 mt-1">
-              <Badge className={getStatusColor(user.status)}>
-                {user.status}
+              <Badge className={getStatusColor(user.accountStatus)}> {/* Changed to user.accountStatus */}
+                {user.accountStatus.replace(/_/g, ' ')} {/* Display friendly string */}
               </Badge>
               {user.isVerified && (
                 <Badge className="bg-blue-100 text-blue-800">
@@ -341,7 +350,7 @@ const AdminUserManagement = () => {
       </div>
 
       <div className="flex gap-2">
-        {user.status === 'active' ? (
+        {user.accountStatus === 'active' ? (
           <Button
             size="sm"
             variant="outline"
@@ -351,7 +360,7 @@ const AdminUserManagement = () => {
             <ShieldOff className="w-4 h-4 mr-1" />
             Suspend
           </Button>
-        ) : (
+        ) : user.accountStatus === 'suspended' || user.accountStatus === 'banned' ? (
           <Button
             size="sm"
             variant="outline"
@@ -361,8 +370,9 @@ const AdminUserManagement = () => {
             <Shield className="w-4 h-4 mr-1" />
             Activate
           </Button>
-        )}
-        {!user.isVerified && (
+        ) : null} {/* Ensures a valid JSX element or null is returned */}
+        
+        {!user.isVerified && user.accountStatus === 'pending_verification' && (
           <Button
             size="sm"
             variant="outline"
@@ -417,7 +427,7 @@ const AdminUserManagement = () => {
           <CardContent className="p-4 text-center">
             <TrendingUp className="w-8 h-8 text-orange-600 mx-auto mb-2" />
             <div className="text-2xl font-bold">
-              {farmers.filter(f => f.status === 'active').length + buyers.filter(b => b.status === 'active').length}
+              {farmers.filter(f => f.accountStatus === 'active').length + buyers.filter(b => b.accountStatus === 'active').length} {/* Changed to accountStatus */}
             </div>
             <p className="text-sm text-gray-600">Active Users</p>
           </CardContent>
@@ -452,13 +462,14 @@ const AdminUserManagement = () => {
                 </div>
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'suspended' | 'pending')}
+                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'suspended' | 'pending_verification' | 'banned')}
                   className="border rounded-md px-3 py-2"
                 >
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
                   <option value="suspended">Suspended</option>
-                  <option value="pending">Pending</option>
+                  <option value="pending_verification">Pending Verification</option>
+                  <option value="banned">Banned</option>
                 </select>
               </div>
             </CardHeader>
@@ -500,13 +511,14 @@ const AdminUserManagement = () => {
                 </div>
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'suspended' | 'pending')}
+                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'suspended' | 'pending_verification' | 'banned')}
                   className="border rounded-md px-3 py-2"
                 >
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
                   <option value="suspended">Suspended</option>
-                  <option value="pending">Pending</option>
+                  <option value="pending_verification">Pending Verification</option>
+                  <option value="banned">Banned</option>
                 </select>
               </div>
             </CardHeader>

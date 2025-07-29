@@ -4,11 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, MapPin, Calendar, Shield, Video, Flag, ShoppingCart, Star } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Shield, Video, Flag, ShoppingCart, Star, Heart } from 'lucide-react';
 import { toast } from 'sonner';
 import FarmerReputationBadge from '@/components/FarmerReputationBadge';
 import ReviewSystem from '@/components/ReviewSystem';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/lib/api';
 import { getImageUrl } from '@/lib/utils';
 
@@ -16,6 +16,7 @@ const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const queryClient = useQueryClient();
 
   // Fetch real product data
   const { data: product, isLoading, error } = useQuery({
@@ -24,7 +25,14 @@ const ProductDetail = () => {
     enabled: !!id,
   });
 
+  // Fetch current wishlist state for the user
+  const { data: wishlistData } = useQuery({
+    queryKey: ['wishlist'],
+    queryFn: () => apiService.getWishlist(),
+    staleTime: Infinity, // Wishlist state doesn't change often unless user interacts
+  });
 
+  const isWishlisted = wishlistData?.wishlist?.products?.some((item: any) => item.product._id === id) || false;
 
   // Defensive: loading and error states
   if (isLoading) {
@@ -84,6 +92,44 @@ const ProductDetail = () => {
     toast.info('Product flagged for review');
   };
 
+  const handleToggleWishlist = async () => {
+    if (!product) return;
+    const productId = product._id || product.id;
+    if (!productId) return;
+
+    const previousWishlist = queryClient.getQueryData(['wishlist']);
+
+    try {
+      if (isWishlisted) {
+        // Optimistically remove
+        queryClient.setQueryData(['wishlist'], (old: any) => ({
+          ...old,
+          wishlist: {
+            ...old?.wishlist,
+            products: old?.wishlist?.products?.filter((item: any) => item.product._id !== productId),
+          },
+        }));
+        await apiService.removeProductFromWishlist(productId);
+        toast.success(`${product.name} removed from wishlist`);
+      } else {
+        // Optimistically add
+        queryClient.setQueryData(['wishlist'], (old: any) => ({
+          ...old,
+          wishlist: {
+            ...old?.wishlist,
+            products: [...(old?.wishlist?.products || []), { product: { _id: productId, name: product.name, images: product.images, price: product.price, category: product.category, farmer: product.farmer } }],
+          },
+        }));
+        await apiService.addProductToWishlist(productId);
+        toast.success(`${product.name} added to wishlist`);
+      }
+    } catch (error) {
+      toast.error(`Failed to update wishlist: ${error instanceof Error ? error.message : 'An unknown error occurred'}`);
+      // Revert optimistic update on error
+      queryClient.setQueryData(['wishlist'], previousWishlist);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -111,6 +157,15 @@ const ProductDetail = () => {
             >
               <Flag className="w-4 h-4 mr-1" />
               Report
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleToggleWishlist}
+              className="text-red-500 hover:text-red-600"
+              aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+            >
+              <Heart className={isWishlisted ? 'fill-red-500' : ''} />
             </Button>
           </div>
         </div>

@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 
 interface Order {
   id: string;
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+  orderStatus: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'processing' | 'out_for_delivery' | 'returned';
   total: number;
   orderDate: string;
   expectedDelivery: string;
@@ -58,16 +58,19 @@ const Orders = () => {
   useEffect(() => {
     if (error) {
       toast.error('Failed to load orders. Please try again.');
-      }
+    }
   }, [error]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'confirmed': return 'bg-blue-100 text-blue-800';
+      case 'processing': return 'bg-orange-100 text-orange-800';
       case 'shipped': return 'bg-purple-100 text-purple-800';
+      case 'out_for_delivery': return 'bg-teal-100 text-teal-800';
       case 'delivered': return 'bg-green-100 text-green-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
+      case 'returned': return 'bg-gray-200 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -76,9 +79,12 @@ const Orders = () => {
     switch (status) {
       case 'pending': return <Clock className="w-4 h-4" />;
       case 'confirmed': return <CheckCircle className="w-4 h-4" />;
+      case 'processing': return <Loader2 className="w-4 h-4 animate-spin" />;
       case 'shipped': return <Package className="w-4 h-4" />;
+      case 'out_for_delivery': return <MapPin className="w-4 h-4" />;
       case 'delivered': return <CheckCircle className="w-4 h-4" />;
       case 'cancelled': return <XCircle className="w-4 h-4" />;
+      case 'returned': return <XCircle className="w-4 h-4" />;
       default: return <Package className="w-4 h-4" />;
     }
   };
@@ -93,20 +99,20 @@ const Orders = () => {
       <CardContent className="p-6">
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="text-lg font-semibold">Order #{order.orderNumber}</h3>
+            <h3 className="text-lg font-semibold">Order #{order.orderNumber || order._id}</h3>
             <p className="text-gray-500">Placed on {new Date(order.createdAt).toLocaleDateString()}</p>
           </div>
           <Badge className={getStatusColor(order.orderStatus)}>
             {getStatusIcon(order.orderStatus)}
-            <span className="ml-1 capitalize">{order.orderStatus}</span>
+            <span className="ml-1 capitalize">{(order.orderStatus || 'unknown').replace(/_/g, ' ')}</span>
           </Badge>
         </div>
 
         <div className="space-y-3 mb-4">
           {order.items.map((item: any, index: number) => (
-            <div key={index} className="flex justify-between items-center">
+            <div key={item.product._id || index} className="flex justify-between items-center">
               <div>
-                <div className="font-medium">{item.name}</div>
+                <div className="font-medium">{item.name || item.product.name}</div>
                 <div className="text-sm text-gray-500">
                   {item.quantity} {item.unit} × ₹{item.price} - by {item.farmerName}
                 </div>
@@ -122,7 +128,9 @@ const Orders = () => {
           <div className="text-sm text-gray-600">
             <div className="flex items-center">
               <MapPin className="w-4 h-4 mr-1" />
-              {order.deliveryAddress.city}, {order.deliveryAddress.state}
+              {order.deliveryAddress && order.deliveryAddress.city && order.deliveryAddress.state && 
+               `${order.deliveryAddress.city}, ${order.deliveryAddress.state}` || 
+               'Delivery address not specified'}
             </div>
             {order.expectedDelivery && (
               <div className="text-green-600 mt-1">

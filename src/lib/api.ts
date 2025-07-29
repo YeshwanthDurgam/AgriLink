@@ -3,6 +3,7 @@ const API_BASE_URL = 'http://localhost:5000/api';
 // Types for API responses
 export interface User {
   id: string;
+  _id?: string; // Add _id for backend compatibility
   name: string;
   email: string;
   phone: string;
@@ -20,6 +21,9 @@ export interface User {
   certifications?: string[];
   preferences?: string[];
   favoriteCategories?: string[];
+  specialties?: string[]; // Add for farmers
+  products?: any[]; // Add for farmers, simplified type for now
+  averageRating?: number; // Add for farmers
   notifications?: {
     email: boolean;
     sms: boolean;
@@ -141,9 +145,10 @@ export interface Product {
   _id?: string; // MongoDB returns this
   name: string;
   description: string;
-  category: 'Vegetables' | 'Fruits' | 'Grains' | 'Herbs' | 'Seeds' | 'Dairy' | 'Other';
+  category: 'Vegetables' | 'Fruits' | 'Grains' | 'Herbs & Spices' | 'Seeds' | 'Dairy' | 'Other';
   subcategory?: string;
   price: number;
+  basePrice?: number; // Add basePrice for backend compatibility
   unit: 'kg' | 'gram' | 'piece' | 'dozen' | 'box' | 'bunch' | 'liter' | 'pack';
   minOrderQuantity: number;
   maxOrderQuantity?: number;
@@ -1189,6 +1194,146 @@ class ApiService {
         'Authorization': `Bearer ${token}`,
       },
       body: formData,
+    });
+    return handleResponse(response);
+  }
+
+  // Wishlist Methods
+  async getWishlist(): Promise<{ wishlist: { products: Product[] } }> {
+    const token = getAuthToken();
+    if (!token) throw new Error('No authentication token found');
+    const response = await fetch(`${this.baseURL}/wishlist`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return handleResponse(response);
+  }
+
+  async addProductToWishlist(productId: string): Promise<{ message: string; wishlist: { products: Product[] } }> {
+    const token = getAuthToken();
+    if (!token) throw new Error('No authentication token found');
+    const response = await fetch(`${this.baseURL}/wishlist`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ productId }),
+    });
+    return handleResponse(response);
+  }
+
+  async removeProductFromWishlist(productId: string): Promise<{ message: string; wishlist: { products: Product[] } }> {
+    const token = getAuthToken();
+    if (!token) throw new Error('No authentication token found');
+    const response = await fetch(`${this.baseURL}/wishlist/${productId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return handleResponse(response);
+  }
+
+  // Farmer Methods
+  async getFarmers(params?: {
+    page?: number;
+    limit?: number;
+    location?: string;
+    sortBy?: string;
+    search?: string;
+  }): Promise<{ farmers: User[]; pagination: any }> {
+    const token = getAuthToken();
+    // Farmer data can be public, so token is optional for basic fetch
+
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+
+    const response = await fetch(`${this.baseURL}/farmers?${queryParams}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+      },
+    });
+    return handleResponse(response);
+  }
+
+  async getFarmerById(id: string): Promise<User> {
+    const response = await fetch(`${this.baseURL}/farmers/${id}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    const data = await handleResponse(response);
+    return data.farmer; // Assuming the response contains a 'farmer' object
+  }
+
+  // Admin Farmer Management
+  async getFarmersAdmin(params?: {
+    page?: number;
+    limit?: number;
+    status?: string; // e.g., 'pending', 'approved', 'rejected'
+    search?: string;
+  }): Promise<{ farmers: User[]; pagination: any }> {
+    const token = getAuthToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+
+    const response = await fetch(`${this.baseURL}/admin/farmers?${queryParams}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return handleResponse(response);
+  }
+
+  async updateFarmerStatus(farmerId: string, status: string): Promise<{ message: string; farmer: User }> {
+    const token = getAuthToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await fetch(`${this.baseURL}/admin/farmers/${farmerId}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status }),
+    });
+    return handleResponse(response);
+  }
+
+  async deleteFarmer(farmerId: string): Promise<{ message: string }> {
+    const token = getAuthToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await fetch(`${this.baseURL}/admin/farmers/${farmerId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
     });
     return handleResponse(response);
   }

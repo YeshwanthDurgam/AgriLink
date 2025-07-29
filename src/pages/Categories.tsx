@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -5,8 +6,23 @@ import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { Leaf, Apple, Wheat, Droplets, Sprout, Milk } from "lucide-react";
 
+interface Category {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ElementType;
+  color: string;
+  count: number;
+  featured: string[];
+}
+
+interface CategoryCount {
+  category: string;
+  count: number;
+}
+
 const Categories = () => {
-  const categories = [
+  const [categories, setCategories] = useState<Category[]>([
     {
       id: "vegetables",
       name: "Vegetables",
@@ -60,8 +76,31 @@ const Categories = () => {
       color: "bg-orange-100 text-orange-800",
       count: 21,
       featured: ["Sunflower Seeds", "Almonds", "Walnuts", "Peanuts"]
-    }
-  ];
+    },
+  ]);
+
+  useEffect(() => {
+    const fetchCategoryCounts = async () => {
+      try {
+        const response = await fetch('/api/analytics/category-counts');
+        if (!response.ok) {
+          throw new Error('Failed to fetch category counts');
+        }
+        const counts: CategoryCount[] = await response.json();
+        
+        setCategories(prevCategories => 
+          prevCategories.map(cat => {
+            const match = counts.find(c => c.category.toLowerCase().includes(cat.id.slice(0, -1)));
+            return match ? { ...cat, count: match.count } : cat;
+          })
+        );
+      } catch (error) {
+        console.error("Error fetching category counts:", error);
+      }
+    };
+
+    fetchCategoryCounts();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -106,7 +145,7 @@ const Categories = () => {
                     </div>
                   </div>
 
-                  <Link to={`/marketplace?category=${category.id}`}>
+                  <Link to={`/category/${category.id}`}>
                     <Button className="w-full bg-green-600 hover:bg-green-700">
                       Browse {category.name}
                     </Button>

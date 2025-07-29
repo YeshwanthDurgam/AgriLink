@@ -1,34 +1,22 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import DashboardLayout from '@/components/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiService, Product, ProductResponse } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Edit, 
-  Trash2, 
-  Eye, 
-  MoreHorizontal,
-  AlertCircle,
-  CheckCircle,
-  Clock
-} from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { CheckCircle, AlertCircle, Clock, Check, Pencil, MoreVertical, Trash2, Eye, Plus, Package } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { toast } from 'sonner';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '@/lib/api';
-import { getPrimaryImageUrl } from '@/lib/utils';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 const ManageProducts = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all'); // keep for UI, but override for admin fetch
-  const [editProduct, setEditProduct] = useState<any>(null);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [editForm, setEditForm] = useState({
     name: '',
     price: '',
@@ -40,18 +28,23 @@ const ManageProducts = () => {
   });
   const [editLoading, setEditLoading] = useState(false);
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const { toast } = useToast();
 
   // Approve product mutation
   const approveProductMutation = useMutation({
     mutationFn: (productId: string) => apiService.updateProductStatus(productId, 'active'),
     onSuccess: () => {
-      toast.success('Product approved successfully');
+      toast({title: 'Success', description: 'Product approved successfully'});
       queryClient.invalidateQueries({ queryKey: ['products'] });
     },
     onError: (error: any) => {
       console.error('Approve product error:', error);
       const message = error?.message || (error?.response?.message) || 'Failed to approve product';
-      toast.error(message);
+      toast({title: 'Error', description: message, variant: 'destructive'});
     }
   });
 
@@ -59,23 +52,40 @@ const ManageProducts = () => {
   const deleteProductMutation = useMutation({
     mutationFn: (productId: string) => apiService.deleteProduct(productId),
     onSuccess: () => {
-      toast.success('Product deleted successfully');
+      toast({title: 'Success', description: 'Product deleted successfully'});
       queryClient.invalidateQueries({ queryKey: ['products'] });
     },
     onError: (error: any) => {
       console.error('Delete product error:', error);
       const message = error?.message || (error?.response?.message) || 'Failed to delete product';
-      toast.error(message);
+      toast({title: 'Error', description: message, variant: 'destructive'});
     }
   });
 
   // Fetch products from backend
-  // For admin, fetch all products regardless of status
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['products'],
-    queryFn: () => apiService.getProducts({ status: 'all' })
+  const { data, isLoading, error } = useQuery<ProductResponse, Error>({
+    queryKey: ['products', page, statusFilter, searchTerm],
+    queryFn: async () => {
+      const params: any = { page, limit: 12 };
+      if (statusFilter && statusFilter !== 'all') params.status = statusFilter;
+      if (searchTerm && searchTerm.trim() !== '') params.search = searchTerm.trim();
+      const res = await apiService.getProducts(params);
+      return res;
+    },
+    // Removed onSuccess callback to resolve type error
   });
-  const products = data?.products || [];
+
+  // Handle data after fetching
+  useEffect(() => {
+    if (data) {
+      setProducts((prevProducts) => {
+        const newProducts = data.products.filter(newProd => !prevProducts.some(p => p.id === newProd.id));
+        return [...prevProducts, ...newProducts];
+      });
+      setTotalProducts(data.pagination.total);
+      setHasMore(data.pagination.currentPage < data.pagination.totalPages);
+    }
+  }, [data]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -105,19 +115,19 @@ const ManageProducts = () => {
     }
   };
 
-  const filteredProducts = products.filter((product: any) => {
+  const filteredProducts = products.filter((product: Product) => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.category.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || product.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const openEditModal = (product: any) => {
+  const openEditModal = (product: Product) => {
     setEditProduct(product);
     setEditForm({
       name: product.name || '',
-      price: product.basePrice || product.price || '',
-      quantity: product.quantity || '',
+      price: product.basePrice?.toString() || product.price.toString() || '',
+      quantity: product.quantity.toString() || '',
       category: product.category || '',
       unit: product.unit || '',
       description: product.description || '',
@@ -131,125 +141,151 @@ const ManageProducts = () => {
     setEditLoading(false);
   };
 
-  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setEditForm({ ...editForm, [e.target.name]: e.target.value });
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setEditForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleEditSave = async () => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!editProduct) return;
+
     setEditLoading(true);
     try {
-      const res = await apiService.put(`/admin/produce/${editProduct._id}`, editForm);
-      if (res.success) {
-        toast.success('Product updated successfully');
-        if (data && data.products) {
-          data.products = data.products.map((p: any) => p._id === editProduct._id ? { ...p, ...editForm } : p);
-        }
+      const res = await apiService.updateProduct(editProduct._id || editProduct.id, {
+        name: editForm.name,
+        price: parseFloat(editForm.price),
+        quantity: parseInt(editForm.quantity),
+        category: editForm.category as Product['category'],
+        unit: editForm.unit as Product['unit'],
+        description: editForm.description,
+        status: editForm.status as Product['status'],
+      });
+      if (res.message) {
+        toast({title: 'Success', description: 'Product updated successfully'});
+        queryClient.invalidateQueries({ queryKey: ['products'] });
         closeEditModal();
       } else {
-        toast.error(res.message || 'Failed to update product');
+        toast({title: 'Error', description: res.message || 'Failed to update product', variant: 'destructive'});
       }
     } catch (err: any) {
-      toast.error(err.message || 'Failed to update product');
+      toast({title: 'Error', description: err.message || 'Failed to update product', variant: 'destructive'});
     } finally {
       setEditLoading(false);
     }
   };
 
-  if (isLoading) {
-    return <div className="p-8 text-center text-gray-500">Loading products...</div>;
+  // Helper to get primary image URL
+  const getPrimaryImageUrl = (images: Product['images']) => {
+    if (!images || images.length === 0) {
+      return '/placeholder.svg';
+    }
+    const primary = images.find(img => img.isPrimary);
+    return primary ? primary.url : images[0].url;
+  };
+
+  if (isLoading && products.length === 0) {
+    return (
+      <div className="flex justify-center items-center h-full">
+        <p>Loading products...</p>
+      </div>
+    );
   }
+
   if (error) {
-    return <div className="p-8 text-center text-red-500">Failed to load products.</div>;
+    return (
+      <div className="flex justify-center items-center h-full text-red-500">
+        <p>Error: {error.message}</p>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Manage Products</h1>
-          <p className="text-gray-600">Oversee your product listings and inventory</p>
-        </div>
-        <Link to="/admin/products/add">
-          <Button className="bg-green-600 hover:bg-green-700">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Product
-          </Button>
-        </Link>
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Manage Products</h1>
+        <Button onClick={() => window.location.href = '/add-product'}>
+          <Plus className="w-4 h-4 mr-2" />
+          Add Product
+        </Button>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalProducts}</div>
+            <p className="text-xs text-muted-foreground">Total products in the system</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{products.filter(p => p.status === 'active').length}</div>
+            <p className="text-xs text-muted-foreground">Currently active products</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Out of Stock</CardTitle>
+            <AlertCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{products.filter(p => p.status === 'out_of_stock').length}</div>
+            <p className="text-xs text-muted-foreground">Products currently out of stock</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{products.filter(p => p.status === 'pending_approval').length}</div>
+            <p className="text-xs text-muted-foreground">Products awaiting approval</p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">{products.length}</div>
-            <div className="text-sm text-gray-600">Total Products</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">
-              {products.filter((p: any) => p.status === 'active').length}
-            </div>
-            <div className="text-sm text-gray-600">Active</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-red-600">
-              {products.filter((p: any) => p.status === 'out_of_stock').length}
-            </div>
-            <div className="text-sm text-gray-600">Out of Stock</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-yellow-600">
-              {products.filter((p: any) => p.status === 'pending_approval').length}
-            </div>
-            <div className="text-sm text-gray-600">Pending</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+        <CardHeader>
+          <CardTitle>Products ({products.length} of {totalProducts})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 mb-4">
               <Input
                 placeholder="Search products..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="max-w-sm"
               />
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="pending_approval">Pending Approval</SelectItem>
+                  <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-48">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="out_of_stock">Out of Stock</SelectItem>
-                <SelectItem value="pending_approval">Pending Approval</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Products List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Products ({filteredProducts.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {filteredProducts.map((product: any) => (
+            {filteredProducts.length === 0 && !isLoading && (
+              <div className="text-center py-8 text-gray-500">
+                No products found matching your criteria.
+              </div>
+            )}
+
+            {filteredProducts.map((product: Product) => (
               <div
                 key={product._id || product.id}
                 className="flex items-center gap-4 p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
@@ -260,7 +296,6 @@ const ManageProducts = () => {
                   alt={product.name}
                   className="w-16 h-16 object-cover rounded-lg"
                   onError={(e) => {
-                    // Fallback to placeholder if image fails to load
                     const target = e.target as HTMLImageElement;
                     target.src = '/placeholder.svg';
                   }}
@@ -280,110 +315,161 @@ const ManageProducts = () => {
                     <span>Listed: {product.createdAt ? new Date(product.createdAt).toLocaleDateString() : ''}</span>
                   </div>
                 </div>
-                {/* Approve button for pending products */}
                 {product.status === 'pending_approval' && (
                   <Button
                     size="sm"
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    onClick={e => {
+                    variant="outline"
+                    onClick={(e) => {
                       e.stopPropagation();
-                      approveProductMutation.mutate(product.id || product._id);
+                      approveProductMutation.mutate(product.id);
                     }}
+                    disabled={approveProductMutation.isPending}
                   >
+                    <Check className="w-4 h-4 mr-2" />
                     Approve
                   </Button>
                 )}
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="ml-2"
-                  onClick={e => {
-                    e.stopPropagation();
-                    if (window.confirm('Are you sure you want to delete this product?')) {
-                      deleteProductMutation.mutate(product._id || product.id);
-                    }
-                  }}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm">
+                <div className="flex items-center gap-2 ml-auto">
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteProductMutation.mutate(product.id);
+                    }}
+                    disabled={deleteProductMutation.isPending}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                  <Button variant="outline" size="icon">
                     <Eye className="w-4 h-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => openEditModal(product)}>
-                    <Edit className="w-4 h-4" />
+                  <Button variant="outline" size="icon">
+                    <Pencil className="w-4 h-4" />
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <MoreHorizontal className="w-4 h-4" />
+                      <Button variant="outline" size="icon" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                      <DropdownMenuItem>Mark Out of Stock</DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600">
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openEditModal(product)}>Edit</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => deleteProductMutation.mutate(product.id)}>Delete</DropdownMenuItem>
+                      {product.status === 'pending_approval' && (
+                        <DropdownMenuItem onClick={() => approveProductMutation.mutate(product.id)}>Approve</DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
               </div>
             ))}
+            {hasMore && (
+              <div className="flex justify-center mt-4">
+                <Button onClick={() => setPage((prevPage) => prevPage + 1)} disabled={isLoading}>
+                  {isLoading ? 'Loading...' : 'Load More'}
+                </Button>
+              </div>
+            )}
           </div>
-          {filteredProducts.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No products found matching your criteria.
-            </div>
-          )}
         </CardContent>
       </Card>
 
-      <Dialog open={!!editProduct} onOpenChange={v => !v && closeEditModal()}>
+      <Dialog open={!!editProduct} onOpenChange={closeEditModal}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Product</DialogTitle>
-            <DialogDescription>Modify product details and save changes.</DialogDescription>
+            <DialogDescription>
+              Make changes to the product details. Click save when you're done.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium">Name</label>
-              <input name="name" value={editForm.name} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+          <form onSubmit={handleEditSubmit} className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Name
+              </Label>
+              <Input id="name" name="name" value={editForm.name} onChange={handleEditChange} className="col-span-3" />
             </div>
-            <div>
-              <label className="block text-sm font-medium">Price</label>
-              <input name="price" value={editForm.price} onChange={handleEditChange} className="w-full border rounded px-3 py-2" type="number" />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="price" className="text-right">
+                Price
+              </Label>
+              <Input id="price" name="price" value={editForm.price} onChange={handleEditChange} className="col-span-3" type="number" step="0.01" />
             </div>
-            <div>
-              <label className="block text-sm font-medium">Quantity</label>
-              <input name="quantity" value={editForm.quantity} onChange={handleEditChange} className="w-full border rounded px-3 py-2" type="number" />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="quantity" className="text-right">
+                Quantity
+              </Label>
+              <Input id="quantity" name="quantity" value={editForm.quantity} onChange={handleEditChange} className="col-span-3" type="number" />
             </div>
-            <div>
-              <label className="block text-sm font-medium">Category</label>
-              <input name="category" value={editForm.category} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="category" className="text-right">
+                Category
+              </Label>
+              <Select name="category" value={editForm.category} onValueChange={(value) => handleEditChange({ target: { name: 'category', value } } as React.ChangeEvent<HTMLSelectElement>)}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Vegetables">Vegetables</SelectItem>
+                  <SelectItem value="Fruits">Fruits</SelectItem>
+                  <SelectItem value="Grains">Grains</SelectItem>
+                  <SelectItem value="Herbs & Spices">Herbs & Spices</SelectItem>
+                  <SelectItem value="Seeds">Seeds</SelectItem>
+                  <SelectItem value="Dairy">Dairy</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <label className="block text-sm font-medium">Unit</label>
-              <input name="unit" value={editForm.unit} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="unit" className="text-right">
+                Unit
+              </Label>
+              <Select name="unit" value={editForm.unit} onValueChange={(value) => handleEditChange({ target: { name: 'unit', value } } as React.ChangeEvent<HTMLSelectElement>)}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select Unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="kg">kg</SelectItem>
+                  <SelectItem value="gram">gram</SelectItem>
+                  <SelectItem value="piece">piece</SelectItem>
+                  <SelectItem value="dozen">dozen</SelectItem>
+                  <SelectItem value="box">box</SelectItem>
+                  <SelectItem value="bunch">bunch</SelectItem>
+                  <SelectItem value="liter">liter</SelectItem>
+                  <SelectItem value="pack">pack</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <label className="block text-sm font-medium">Description</label>
-              <textarea name="description" value={editForm.description} onChange={handleEditChange} className="w-full border rounded px-3 py-2" />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="description" className="text-right">
+                Description
+              </Label>
+              <Textarea id="description" name="description" value={editForm.description} onChange={handleEditChange} className="col-span-3" />
             </div>
-            <div>
-              <label className="block text-sm font-medium">Status</label>
-              <select name="status" value={editForm.status} onChange={handleEditChange} className="w-full border rounded px-3 py-2">
-                <option value="active">Active</option>
-                <option value="out_of_stock">Out of Stock</option>
-                <option value="pending_approval">Pending Approval</option>
-              </select>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="status" className="text-right">
+                Status
+              </Label>
+              <Select name="status" value={editForm.status} onValueChange={(value) => handleEditChange({ target: { name: 'status', value } } as React.ChangeEvent<HTMLSelectElement>)}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                  <SelectItem value="pending_approval">Pending Approval</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeEditModal} disabled={editLoading}>Cancel</Button>
-            <Button onClick={handleEditSave} disabled={editLoading}>Save</Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button type="submit" disabled={editLoading}>
+                {editLoading ? 'Saving...' : 'Save changes'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
@@ -391,3 +477,12 @@ const ManageProducts = () => {
 };
 
 export default ManageProducts;
+
+// Helper function (already present, adding for completeness if not there)
+const getPrimaryImageUrl = (images: Product['images']) => {
+  if (!images || images.length === 0) {
+    return '/placeholder.svg';
+  }
+  const primary = images.find(img => img.isPrimary);
+  return primary ? primary.url : images[0].url;
+};

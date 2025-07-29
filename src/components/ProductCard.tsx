@@ -3,14 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ShoppingCart, MapPin, Calendar, Star } from 'lucide-react';
+import { ShoppingCart, MapPin, Calendar, Star, Heart } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 import { getPrimaryImageUrl } from '@/lib/utils';
+import { apiService } from '@/lib/api';
+import { toast } from 'sonner';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 
 interface Product {
   id: string;
   name: string;
-  price: number;
+  price?: number;
+  basePrice?: number;
   unit: string;
   quantity: number;
   category: string;
@@ -23,17 +27,68 @@ interface Product {
   };
   harvestDate: string;
   organic: boolean;
+  deal?: string; // Added for deals
+  discount?: number; // Added for discounts
+  isWishlisted?: boolean; // Add this property
 }
 
 interface ProductCardProps {
   product: Product;
   showFarmerInfo?: boolean;
+  showDealBadge?: boolean;
 }
 
-const ProductCard = ({ product, showFarmerInfo = true }: ProductCardProps) => {
+const ProductCard = ({ product, showFarmerInfo = true, showDealBadge = false }: ProductCardProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const queryClient = useQueryClient();
+
+  // Fetch current wishlist state for the user
+  const { data: wishlistData } = useQuery({
+    queryKey: ['wishlist'],
+    queryFn: () => apiService.getWishlist(),
+    staleTime: Infinity, // Wishlist state doesn't change often unless user interacts
+  });
+
+  const isWishlisted = wishlistData?.wishlist?.products?.some((item: any) => item.product._id === product.id) || false;
+
+  const handleToggleWishlist = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const previousWishlist = queryClient.getQueryData(['wishlist']);
+
+    try {
+      if (isWishlisted) {
+        // Optimistically remove
+        queryClient.setQueryData(['wishlist'], (old: any) => ({
+          ...old,
+          wishlist: {
+            ...old?.wishlist,
+            products: old?.wishlist?.products?.filter((item: any) => item.product._id !== product.id),
+          },
+        }));
+        await apiService.removeProductFromWishlist(product.id);
+        toast.success(`${product.name} removed from wishlist`);
+      } else {
+        // Optimistically add
+        queryClient.setQueryData(['wishlist'], (old: any) => ({
+          ...old,
+          wishlist: {
+            ...old?.wishlist,
+            products: [...(old?.wishlist?.products || []), { product: { _id: product.id, name: product.name, images: product.images, price: product.price, category: product.category, farmer: product.farmer } }],
+          },
+        }));
+        await apiService.addProductToWishlist(product.id);
+        toast.success(`${product.name} added to wishlist`);
+      }
+    } catch (error) {
+      toast.error(`Failed to update wishlist: ${error instanceof Error ? error.message : 'An unknown error occurred'}`);
+      // Revert optimistic update on error
+      queryClient.setQueryData(['wishlist'], previousWishlist);
+    }
+  };
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -57,6 +112,7 @@ const ProductCard = ({ product, showFarmerInfo = true }: ProductCardProps) => {
       case 'grains': return 'bg-yellow-100 text-yellow-800';
       case 'dairy': return 'bg-blue-100 text-blue-800';
       case 'seeds': return 'bg-purple-100 text-purple-800';
+      case 'herbs & spices': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -68,7 +124,7 @@ const ProductCard = ({ product, showFarmerInfo = true }: ProductCardProps) => {
     >
       <div className="relative">
         <img 
-          src={getPrimaryImageUrl(product.images)}
+          src={getPrimaryImageUrl(Array.isArray(product.images) ? product.images : [])}
           alt={product.name}
           className="w-full h-40 sm:h-48 object-cover group-hover:scale-105 transition-transform duration-300"
           onError={(e) => {
@@ -77,7 +133,12 @@ const ProductCard = ({ product, showFarmerInfo = true }: ProductCardProps) => {
             target.src = '/placeholder.svg';
           }}
         />
-        <div className="absolute top-2 left-2 flex gap-1 sm:gap-2">
+        <div className="absolute top-2 left-2 flex flex-col gap-1 sm:gap-2">
+          {showDealBadge && (product.deal || (product.discount && product.discount > 0)) && (
+            <Badge className="bg-red-500 text-white text-xs sm:text-sm font-bold">
+              {product.discount && product.discount > 0 ? `-${product.discount}%` : 'Deal!'}
+            </Badge>
+          )}
           <Badge className={`${getCategoryColor(product.category)} text-xs sm:text-sm`}>
             {product.category}
           </Badge>
@@ -86,8 +147,18 @@ const ProductCard = ({ product, showFarmerInfo = true }: ProductCardProps) => {
           )}
         </div>
         <div className="absolute top-2 right-2">
+          {/* Wishlist Icon */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="bg-white/80 hover:bg-white text-red-500 hover:text-red-600 rounded-full shadow-sm transition-all duration-300"
+            onClick={handleToggleWishlist}
+            aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+          >
+            <Heart className={isWishlisted ? 'fill-red-500' : ''} />
+          </Button>
           {showFarmerInfo && (
-            <div className="bg-white rounded-full px-2 py-1 flex items-center space-x-1 text-xs shadow-sm">
+            <div className="bg-white rounded-full px-2 py-1 flex items-center space-x-1 text-xs shadow-sm mt-1">
               <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
               <span>{product.farmer.rating}</span>
             </div>
@@ -119,7 +190,7 @@ const ProductCard = ({ product, showFarmerInfo = true }: ProductCardProps) => {
         <div className="flex justify-between items-start mb-2">
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 line-clamp-2 flex-1 mr-2 group-hover:text-green-600 transition-colors">{product.name}</h3>
           <div className="text-right flex-shrink-0">
-            <p className="text-base sm:text-lg font-bold text-green-600">₹{product.price}</p>
+            <p className="text-base sm:text-lg font-bold text-green-600">₹{product.basePrice ?? product.price}</p>
             <p className="text-xs sm:text-sm text-gray-500">per {product.unit}</p>
           </div>
         </div>

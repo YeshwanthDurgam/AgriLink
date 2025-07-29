@@ -30,6 +30,8 @@ import {
   Bell
 } from "lucide-react";
 import { useState } from "react";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiService } from '@/lib/api';
 
 const Header = () => {
   const { user, isAuthenticated, logout } = useAuth();
@@ -38,6 +40,29 @@ const Header = () => {
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const queryClient = useQueryClient();
+
+  console.log("Header User Role:", user?.role); // Add this line
+
+  // Fetch wishlist data for header display
+  const { data: wishlistData } = useQuery({
+    queryKey: ['wishlist'],
+    queryFn: () => apiService.getWishlist(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: isAuthenticated, // Only fetch if user is authenticated
+  });
+
+  const wishlistCount = wishlistData?.wishlist?.products?.length || 0;
+
+  // Fetch orders data for header display
+  const { data: ordersData } = useQuery({
+    queryKey: ['orders', 'header'], // Use a specific query key for header orders
+    queryFn: () => apiService.getUserOrders(1, 10, 'pending'), // Fetch only pending orders for the count
+    staleTime: 60 * 1000, // 1 minute
+    enabled: isAuthenticated, // Only fetch if user is authenticated
+  });
+
+  const orderCount = ordersData?.orders?.length || 0;
 
   const handleLogout = () => {
     logout();
@@ -135,17 +160,21 @@ const Header = () => {
               <Link to="/wishlist" className="flex flex-col items-center text-xs hover:text-green-600 transition-all duration-200 group">
                 <div className="relative">
                   <Heart className="h-6 w-6 group-hover:scale-110 transition-transform duration-200" />
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 animate-pulse"></div>
+                  {wishlistCount > 0 && (
+                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                  )}
                 </div>
                 <span className="font-medium">Wishlist</span>
               </Link>
 
               {/* Orders */}
-              <Link to="/orders" className="flex flex-col items-center text-xs hover:text-green-600 transition-all duration-200 group">
+              <Link to={user?.role === 'admin' ? '/admin/orders' : '/orders'} className="flex flex-col items-center text-xs hover:text-green-600 transition-all duration-200 group">
                 <div className="relative">
                   <Package className="h-6 w-6 group-hover:scale-110 transition-transform duration-200" />
-                  {isAuthenticated && (
-                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                  {orderCount > 0 && (
+                    <Badge className="absolute -top-1 -right-1 bg-blue-500 text-white min-w-[20px] h-6 flex items-center justify-center text-xs font-bold shadow-lg animate-pulse-glow">
+                      {orderCount}
+                    </Badge>
                   )}
                 </div>
                 <span className="font-medium">Orders</span>
@@ -581,32 +610,17 @@ const Header = () => {
       <div className="bg-gradient-to-r from-green-600 via-emerald-600 to-green-700 text-white shadow-lg">
         <div className="px-4">
           <div className="flex items-center space-x-2 py-3 overflow-x-auto scrollbar-hide">
-            <button className="flex items-center space-x-2 hover:bg-white/20 px-2 py-2 rounded-lg transition-all duration-200 font-medium whitespace-nowrap flex-shrink-0">
+            <Link to="/categories" className="flex items-center space-x-2 hover:bg-white/20 px-2 py-2 rounded-lg transition-all duration-200 font-medium whitespace-nowrap flex-shrink-0">
               <Menu className="h-4 w-4" />
               <span className="hidden sm:inline">All Categories</span>
               <span className="sm:hidden">Categories</span>
-            </button>
+            </Link>
             
             <Link to="/marketplace" className="hover:bg-white/20 px-2 py-2 rounded-lg transition-all duration-200 font-medium whitespace-nowrap flex-shrink-0">
-              <span className="hidden sm:inline">🥬 Fresh Vegetables</span>
-              <span className="sm:hidden">🥬 Vegetables</span>
+              <span className="hidden sm:inline">🛍️ Marketplace</span>
+              <span className="sm:hidden">🛍️ Market</span>
             </Link>
-            <Link to="/marketplace" className="hover:bg-white/20 px-2 py-2 rounded-lg transition-all duration-200 font-medium whitespace-nowrap flex-shrink-0">
-              <span className="hidden sm:inline">🍎 Fresh Fruits</span>
-              <span className="sm:hidden">🍎 Fruits</span>
-            </Link>
-            <Link to="/marketplace" className="hover:bg-white/20 px-2 py-2 rounded-lg transition-all duration-200 font-medium whitespace-nowrap flex-shrink-0">
-              <span className="hidden sm:inline">🥛 Dairy & Eggs</span>
-              <span className="sm:hidden">🥛 Dairy</span>
-            </Link>
-            <Link to="/marketplace" className="hover:bg-white/20 px-2 py-2 rounded-lg transition-all duration-200 font-medium whitespace-nowrap flex-shrink-0">
-              <span className="hidden sm:inline">🌾 Grains & Pulses</span>
-              <span className="sm:hidden">🌾 Grains</span>
-            </Link>
-            <Link to="/marketplace" className="hover:bg-white/20 px-2 py-2 rounded-lg transition-all duration-200 font-medium whitespace-nowrap flex-shrink-0">
-              <span className="hidden sm:inline">🌱 Organic Products</span>
-              <span className="sm:hidden">🌱 Organic</span>
-            </Link>
+
             <Link to="/deals" className="hover:bg-white/20 px-2 py-2 rounded-lg transition-all duration-200 font-medium whitespace-nowrap bg-yellow-500/20 flex-shrink-0">
               <span className="hidden sm:inline">🔥 Today's Deals</span>
               <span className="sm:hidden">🔥 Deals</span>
@@ -649,7 +663,7 @@ const Header = () => {
             )}
           </Link>
           
-          <Link to="/orders" className="flex flex-col items-center p-2 touch-target">
+          <Link to={user?.role === 'admin' ? '/admin/orders' : '/orders'} className="flex flex-col items-center p-2 touch-target">
             <Package className="h-5 w-5 text-gray-600" />
             <span className="text-xs text-gray-600 mt-1">Orders</span>
           </Link>

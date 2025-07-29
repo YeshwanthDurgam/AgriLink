@@ -30,9 +30,21 @@ const Marketplace = () => {
   });
   const { getTotalItems } = useCart();
 
-  // Categories and locations for filters
-  const categories = ["Vegetables", "Fruits", "Grains", "Herbs", "Seeds", "Dairy"];
-  const locations = ["Maharashtra", "Karnataka", "Punjab", "Tamil Nadu", "Gujarat", "Rajasthan"];
+  // Fetch unique categories and locations from products
+  const { data: filterData } = useQuery({
+    queryKey: ['filterOptions'],
+    queryFn: async () => {
+      const allProducts = await apiService.getProducts({ limit: 1000 }); // Fetch a large number to get all options
+      if (!allProducts || !allProducts.products) return { categories: [], locations: [] };
+      const categories = [...new Set(allProducts.products.map(p => p.category).filter(Boolean))];
+      const locations = [...new Set(allProducts.products.map(p => p.farmer?.location).filter(Boolean))];
+      return { categories, locations };
+    },
+    staleTime: 60 * 60 * 1000, // 1 hour
+  });
+
+  const categories = filterData?.categories || [];
+  const locations = filterData?.locations || [];
 
   // Convert frontend filters to API parameters
   const getApiParams = () => {
@@ -307,35 +319,6 @@ const Marketplace = () => {
           </Card>
         ) : null}
 
-        {/* Featured Categories */}
-        {!isLoading && !error && (
-          <div className="mt-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Browse by Category</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {categories.map((category) => (
-                <Link
-                  key={category}
-                  to={`/marketplace?category=${category}`}
-                  className="block"
-                >
-                  <Card className="hover:shadow-lg transition-shadow duration-300 border-green-100">
-                    <CardContent className="p-4 text-center">
-                      <div className="text-2xl mb-2">
-                        {category === "Vegetables" && "🥬"}
-                        {category === "Fruits" && "🍎"}
-                        {category === "Grains" && "🌾"}
-                        {category === "Herbs" && "🌿"}
-                        {category === "Seeds" && "🌰"}
-                        {category === "Dairy" && "🥛"}
-                      </div>
-                      <h3 className="font-semibold text-sm">{category}</h3>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Mobile Floating Action Button */}

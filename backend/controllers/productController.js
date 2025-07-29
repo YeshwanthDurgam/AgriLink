@@ -142,7 +142,7 @@ const getProducts = async (req, res) => {
   try {
     const {
       page = 1,
-      limit = 12,
+      limit = 12, // Reverting limit back to 12 for pagination
       category,
       status = 'active',
       organic,
@@ -151,7 +151,9 @@ const getProducts = async (req, res) => {
       sortBy = 'createdAt',
       sortOrder = 'desc',
       search,
-      farmer
+      farmer,
+      deal,
+      discount
     } = req.query;
 
     // Build query
@@ -164,7 +166,28 @@ const getProducts = async (req, res) => {
 
     // Category filter
     if (category) {
-      query.category = category;
+      query.category = { $regex: new RegExp(`^${category}$`, 'i') };
+    }
+
+    // Deal filter
+    if (deal === 'true') {
+      query.deal = true;
+      // Only show deals that are not expired
+      query.$or = [
+        { dealExpiresAt: { $exists: false } },
+        { dealExpiresAt: null },
+        { dealExpiresAt: { $gt: new Date() } }
+      ];
+    }
+
+    // Discount filter
+    if (discount === 'true') {
+      query.discount = { $gt: 0 };
+      query.$or = [
+        { dealExpiresAt: { $exists: false } },
+        { dealExpiresAt: null },
+        { dealExpiresAt: { $gt: new Date() } }
+      ];
     }
 
     // Organic filter

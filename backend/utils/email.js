@@ -70,7 +70,6 @@ const sendPasswordResetEmail = async (email, resetToken, resetUrl) => {
     };
     
     const info = await transporter.sendMail(mailOptions);
-    console.log('Password reset email sent:', info.messageId);
     return true;
   } catch (error) {
     console.error('Error sending password reset email:', error);
@@ -129,7 +128,6 @@ const sendPasswordResetSuccessEmail = async (email, userName) => {
     };
     
     const info = await transporter.sendMail(mailOptions);
-    console.log('Password reset success email sent:', info.messageId);
     return true;
   } catch (error) {
     console.error('Error sending password reset success email:', error);
