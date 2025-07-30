@@ -33,7 +33,9 @@ import {
   Youtube
 } from "lucide-react";
 import { apiService, Product } from "@/lib/api";
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, type CarouselApi } from "@/components/ui/carousel";
+import { cn } from "@/lib/utils";
 
 interface CarouselAnnouncement {
   _id: string;
@@ -86,15 +88,27 @@ const Index = () => {
   }, []);
 
   // Carousel component
-  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [api, setApi] = useState<CarouselApi>();
+
   useEffect(() => {
-    if (carouselAnnouncements.length > 1) {
-      const interval = setInterval(() => {
-        setCarouselIndex((prev) => (prev + 1) % carouselAnnouncements.length);
-      }, 4000);
-      return () => clearInterval(interval);
+    if (!api) {
+      return;
     }
-  }, [carouselAnnouncements]);
+
+    const onSelect = () => {
+      setCarouselIndex(api.selectedScrollSnap());
+    };
+
+    api.on("select", onSelect);
+    api.on("reInit", onSelect); // Handle re-initialization
+
+    return () => {
+      api.off("select", onSelect);
+      api.off("reInit", onSelect);
+    };
+  }, [api]);
+
+  const [carouselIndex, setCarouselIndex] = useState(0);
 
   const stats = [
     { 
@@ -266,60 +280,60 @@ const Index = () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
       <Header />
       {/* Homepage Carousel */}
-      <div className="w-full bg-white shadow mb-8">
+      <section className="relative w-full overflow-hidden mb-8 lg:mb-12 rounded-lg shadow-lg">
         {carouselAnnouncements.filter(slide => slide.image && slide.title && slide.targetUrl).length > 0 ? (
-          <div className="relative max-w-6xl mx-auto">
-            <div className="overflow-hidden rounded-xl h-80 bg-gray-100 w-full relative">
-              {carouselAnnouncements.filter(slide => slide.image && slide.title && slide.targetUrl).map((slide, idx) => {
-                const isInternal = slide.targetUrl.startsWith('/') || slide.targetUrl.startsWith(window.location.origin);
-                return (
-                  <div
-                    key={slide._id}
-                    className={`absolute top-0 left-0 w-full h-full transition-opacity duration-700 ease-in-out cursor-pointer ${idx === carouselIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-                    style={{ pointerEvents: idx === carouselIndex ? 'auto' : 'none', textDecoration: 'none' }}
-                    onClick={() => {
-                      if (isInternal) {
-                        // Remove domain if present
-                        let path = slide.targetUrl;
-                        if (path.startsWith(window.location.origin)) {
-                          path = path.replace(window.location.origin, '');
-                        }
-                        navigate(path);
-                      } else {
-                        window.open(slide.targetUrl, '_blank', 'noopener');
-                      }
-                    }}
+          <Carousel setApi={setApi} opts={{ loop: true }} className="w-full">
+            <CarouselContent>
+              {carouselAnnouncements.filter(slide => slide.image && slide.title && slide.targetUrl).map((slide, idx) => (
+                <CarouselItem key={slide._id} className="relative h-[200px] md:h-[300px] lg:h-[400px] xl:h-[500px] group overflow-hidden rounded-lg">
+                  <a
+                    href={slide.targetUrl}
+                    target={slide.targetUrl.startsWith('/') || slide.targetUrl.startsWith(window.location.origin) ? '_self' : '_blank'}
+                    rel={slide.targetUrl.startsWith('/') || slide.targetUrl.startsWith(window.location.origin) ? undefined : 'noopener noreferrer'}
+                    className="block w-full h-full"
                   >
                     <img
                       src={slide.image}
                       alt={slide.title}
-                      className="w-full h-80 object-cover rounded-xl"
-                      style={{ width: '100%', height: '20rem', objectFit: 'cover', display: 'block' }}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = '/placeholder.svg';
+                      }}
                     />
-                    <div className="absolute bottom-0 left-0 w-full p-6 bg-black bg-opacity-60 rounded-b-xl">
-                      <h3 className="text-3xl font-bold mb-2 text-white drop-shadow-lg">{slide.title}</h3>
-                      <p className="text-white text-lg drop-shadow-lg">{slide.content}</p>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-4 md:p-8">
+                      <div className="text-white">
+                        <h3 className="text-xl md:text-3xl font-bold mb-2 drop-shadow">{slide.title}</h3>
+                        <p className="text-sm md:text-lg opacity-90 drop-shadow hidden sm:block">{slide.content}</p>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-            {/* Carousel dots */}
-            <div className="flex justify-center gap-2 mt-2 relative z-20">
+                  </a>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious className="absolute left-4 top-1/2 -translate-y-1/2 z-20 bg-white/50 hover:bg-white/80 transition-all text-gray-800" />
+            <CarouselNext className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-white/50 hover:bg-white/80 transition-all text-gray-800" />
+            {/* Dots navigation */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-2 z-20">
               {carouselAnnouncements.filter(slide => slide.image && slide.title && slide.targetUrl).map((_, idx) => (
                 <button
                   key={idx}
-                  className={`w-3 h-3 rounded-full ${idx === carouselIndex ? 'bg-green-600' : 'bg-gray-300'}`}
-                  onClick={() => setCarouselIndex(idx)}
+                  className={cn(
+                    "w-2 h-2 rounded-full transition-all duration-300",
+                    idx === carouselIndex ? "bg-white w-6" : "bg-gray-400"
+                  )}
+                  onClick={() => api?.scrollTo(idx)}
                   aria-label={`Go to slide ${idx + 1}`}
                 />
               ))}
             </div>
-          </div>
+          </Carousel>
         ) : (
-          <div className="text-center py-8 text-gray-400">No carousel slides available</div>
+          <div className="flex items-center justify-center h-[200px] md:h-[300px] lg:h-[400px] xl:h-[500px] bg-gray-100 rounded-lg">
+            <p className="text-gray-400 text-lg">No carousel slides available</p>
+          </div>
         )}
-      </div>
+      </section>
       
       {/* Enhanced Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-green-600 via-green-700 to-emerald-800 text-white py-16 sm:py-20 md:py-28">

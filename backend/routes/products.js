@@ -147,6 +147,11 @@ router.delete('/:id/images/:imageId',
   productController.deleteProductImage
 );
 
+router.put('/:id/images', 
+  roleCheck('farmer', 'admin'),
+  productController.updateProductImageUrls
+);
+
 // Admin routes (only admins can access)
 router.patch('/:id/status', 
   roleCheck('admin', 'super_admin'),

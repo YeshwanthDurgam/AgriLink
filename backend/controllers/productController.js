@@ -575,6 +575,62 @@ const deleteProductImage = async (req, res) => {
   }
 };
 
+// Update product image URLs (for external URLs)
+const updateProductImageUrls = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { images } = req.body; // Array of { url, alt, isPrimary }
+
+    // Find the product
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Allow if user is the farmer or an admin
+    if (product.farmer.toString() !== req.user.id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'You can update images for your product only'
+      });
+    }
+
+    // Validate images array
+    if (!Array.isArray(images)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Images must be an array'
+      });
+    }
+
+    // Update product images
+    product.images = images.map(img => ({
+      url: img.url,
+      alt: img.alt || '',
+      isPrimary: img.isPrimary || false,
+      uploadedAt: new Date()
+    }));
+
+    await product.save();
+
+    res.json({
+      success: true,
+      message: 'Product images updated successfully',
+      images: product.images
+    });
+  } catch (error) {
+    console.error('Error updating product image URLs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating image URLs',
+      error: error.message
+    });
+  }
+};
+
 // Get farmer's products
 const getFarmerProducts = async (req, res) => {
   try {
@@ -887,6 +943,7 @@ module.exports = {
   updateProductStatus,
   uploadProductImages,
   deleteProductImage,
+  updateProductImageUrls,
   getFarmerProducts,
   getFeaturedProducts,
   searchProducts,

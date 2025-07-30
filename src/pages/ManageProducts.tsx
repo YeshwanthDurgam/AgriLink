@@ -5,28 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { CheckCircle, AlertCircle, Clock, Check, Pencil, MoreVertical, Trash2, Eye, Plus, Package } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import EditProductDialog from '@/components/EditProductDialog';
 
 const ManageProducts = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [editProduct, setEditProduct] = useState<Product | null>(null);
-  const [editForm, setEditForm] = useState({
-    name: '',
-    price: '',
-    quantity: '',
-    category: '',
-    unit: '',
-    description: '',
-    status: '',
-  });
-  const [editLoading, setEditLoading] = useState(false);
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [products, setProducts] = useState<Product[]>([]);
@@ -124,55 +112,10 @@ const ManageProducts = () => {
 
   const openEditModal = (product: Product) => {
     setEditProduct(product);
-    setEditForm({
-      name: product.name || '',
-      price: product.basePrice?.toString() || product.price.toString() || '',
-      quantity: product.quantity.toString() || '',
-      category: product.category || '',
-      unit: product.unit || '',
-      description: product.description || '',
-      status: product.status || '',
-    });
   };
 
   const closeEditModal = () => {
     setEditProduct(null);
-    setEditForm({ name: '', price: '', quantity: '', category: '', unit: '', description: '', status: '' });
-    setEditLoading(false);
-  };
-
-  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setEditForm(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editProduct) return;
-
-    setEditLoading(true);
-    try {
-      const res = await apiService.updateProduct(editProduct._id || editProduct.id, {
-        name: editForm.name,
-        price: parseFloat(editForm.price),
-        quantity: parseInt(editForm.quantity),
-        category: editForm.category as Product['category'],
-        unit: editForm.unit as Product['unit'],
-        description: editForm.description,
-        status: editForm.status as Product['status'],
-      });
-      if (res.message) {
-        toast({title: 'Success', description: 'Product updated successfully'});
-        queryClient.invalidateQueries({ queryKey: ['products'] });
-        closeEditModal();
-      } else {
-        toast({title: 'Error', description: res.message || 'Failed to update product', variant: 'destructive'});
-      }
-    } catch (err: any) {
-      toast({title: 'Error', description: err.message || 'Failed to update product', variant: 'destructive'});
-    } finally {
-      setEditLoading(false);
-    }
   };
 
   // Helper to get primary image URL
@@ -375,103 +318,11 @@ const ManageProducts = () => {
         </CardContent>
       </Card>
 
-      <Dialog open={!!editProduct} onOpenChange={closeEditModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Product</DialogTitle>
-            <DialogDescription>
-              Make changes to the product details. Click save when you're done.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleEditSubmit} className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Name
-              </Label>
-              <Input id="name" name="name" value={editForm.name} onChange={handleEditChange} className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="price" className="text-right">
-                Price
-              </Label>
-              <Input id="price" name="price" value={editForm.price} onChange={handleEditChange} className="col-span-3" type="number" step="0.01" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="quantity" className="text-right">
-                Quantity
-              </Label>
-              <Input id="quantity" name="quantity" value={editForm.quantity} onChange={handleEditChange} className="col-span-3" type="number" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="category" className="text-right">
-                Category
-              </Label>
-              <Select name="category" value={editForm.category} onValueChange={(value) => handleEditChange({ target: { name: 'category', value } } as React.ChangeEvent<HTMLSelectElement>)}>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Vegetables">Vegetables</SelectItem>
-                  <SelectItem value="Fruits">Fruits</SelectItem>
-                  <SelectItem value="Grains">Grains</SelectItem>
-                  <SelectItem value="Herbs & Spices">Herbs & Spices</SelectItem>
-                  <SelectItem value="Seeds">Seeds</SelectItem>
-                  <SelectItem value="Dairy">Dairy</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="unit" className="text-right">
-                Unit
-              </Label>
-              <Select name="unit" value={editForm.unit} onValueChange={(value) => handleEditChange({ target: { name: 'unit', value } } as React.ChangeEvent<HTMLSelectElement>)}>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select Unit" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="kg">kg</SelectItem>
-                  <SelectItem value="gram">gram</SelectItem>
-                  <SelectItem value="piece">piece</SelectItem>
-                  <SelectItem value="dozen">dozen</SelectItem>
-                  <SelectItem value="box">box</SelectItem>
-                  <SelectItem value="bunch">bunch</SelectItem>
-                  <SelectItem value="liter">liter</SelectItem>
-                  <SelectItem value="pack">pack</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="description" className="text-right">
-                Description
-              </Label>
-              <Textarea id="description" name="description" value={editForm.description} onChange={handleEditChange} className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="status" className="text-right">
-                Status
-              </Label>
-              <Select name="status" value={editForm.status} onValueChange={(value) => handleEditChange({ target: { name: 'status', value } } as React.ChangeEvent<HTMLSelectElement>)}>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                  <SelectItem value="out_of_stock">Out of Stock</SelectItem>
-                  <SelectItem value="pending_approval">Pending Approval</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={editLoading}>
-                {editLoading ? 'Saving...' : 'Save changes'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <EditProductDialog
+        product={editProduct}
+        open={!!editProduct}
+        onOpenChange={closeEditModal}
+      />
     </div>
   );
 };

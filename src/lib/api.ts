@@ -824,6 +824,23 @@ class ApiService {
     return handleResponse(response);
   }
 
+  async updateProductImageUrls(id: string, images: Array<{ url: string; alt?: string; isPrimary?: boolean }>): Promise<{ message: string; images: any[] }> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    const response = await fetch(`${this.baseURL}/products/${id}/images`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ images }),
+    });
+    return handleResponse(response);
+  }
+
   async updateProductStatus(id: string, status: Product['status'], reason?: string): Promise<{ message: string; product: Product }> {
     const token = getAuthToken();
     if (!token) {
