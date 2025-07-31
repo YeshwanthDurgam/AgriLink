@@ -386,34 +386,109 @@ const getFarmerOrders = async (req, res) => {
   try {
     const { page = 1, limit = 10, status } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const farmerId = req.user.id;
+    if (!farmerId || !mongoose.Types.ObjectId.isValid(farmerId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid farmer ID provided.'
+      });
+    }
+    const farmerObjectId = new mongoose.Types.ObjectId(farmerId);
 
-    // Updated query: find orders where any item.farmer matches the farmer's ID
-    const query = { 'items.farmer': new mongoose.Types.ObjectId(req.user.id) };
+    const baseMatch = { 'farmerOrders.farmer': farmerObjectId };
     if (status && status !== 'all') {
-      query['items.status'] = status;
+      baseMatch['farmerOrders.status'] = status;
     }
 
-    const orders = await Order.find(query)
-      .populate([
-        { path: 'buyer', select: 'name email phone' },
-        { path: 'items.product', select: 'name images' }
-      ])
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .lean();
+    // Pipeline to fetch orders
+    const ordersPipeline = [
+      { $match: baseMatch },
+      { $unwind: { path: '$farmerOrders', preserveNullAndEmptyArrays: true } },
+      { $match: { 'farmerOrders.farmer': farmerId } }, // Ensure we only process the current farmer's sub-order
+      { $addFields: { farmerSpecificOrderStatus: '$farmerOrders.status' } }, // Promote farmer's status
+      { $lookup: {
+          from: 'users',
+          localField: 'buyer',
+          foreignField: '_id',
+          as: 'buyerInfo'
+      }},
+      { $unwind: { path: '$buyerInfo', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$items', preserveNullAndEmptyArrays: true } },
+      { $match: { 'items.farmer': farmerId } }, // Only include items from this farmer
+      { $lookup: {
+          from: 'products',
+          localField: 'items.product',
+          foreignField: '_id',
+          as: 'items.productInfo'
+      }},
+      { $unwind: { path: '$items.productInfo', preserveNullAndEmptyArrays: true } }, // Preserve documents if productInfo is missing
+      { $group: {
+          _id: '$_id',
+          orderNumber: { $first: '$orderNumber' },
+          createdAt: { $first: '$createdAt' },
+          deliveryAddress: { $first: '$deliveryAddress' },
+          paymentMethod: { $first: '$paymentMethod' },
+          subtotal: { $first: '$subtotal' },
+          deliveryFee: { $first: '$deliveryFee' },
+          total: { $first: '$total' },
+          notes: { $first: '$notes' },
+          expectedDelivery: { $first: '$expectedDelivery' },
+          orderStatus: { $first: '$farmerSpecificOrderStatus' }, // Use the promoted status
+          buyer: { $first: '$buyerInfo' }, // Now buyerInfo is populated
+          items: { $push: {
+              product: '$items.productInfo',
+              name: '$items.name',
+              price: '$items.price',
+              unit: '$items.unit',
+              quantity: '$items.quantity',
+              total: '$items.total',
+              farmer: '$items.farmer',
+              farmerName: '$items.farmerName'
+          }}
+      }},
+      { $project: {
+          _id: 1,
+          orderNumber: 1,
+          createdAt: 1,
+          deliveryAddress: 1,
+          paymentMethod: 1,
+          subtotal: 1,
+          deliveryFee: 1,
+          total: 1,
+          notes: 1,
+          expectedDelivery: 1,
+          orderStatus: 1,
+          items: 1,
+          buyer: { $cond: { if: "$buyerInfo", then: { _id: '$buyerInfo._id', name: '$buyerInfo.name', email: '$buyerInfo.email', phone: '$buyerInfo.phone' }, else: null } } // Access populated buyer fields
+      }},
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: parseInt(limit) }
+    ];
 
-    const total = await Order.countDocuments(query);
+    const orders = await Order.aggregate(ordersPipeline);
+
+    // Pipeline to count total documents for pagination
+    const countPipeline = [
+      { $match: baseMatch },
+      { $unwind: '$farmerOrders' },
+      { $match: { 'farmerOrders.farmer': farmerId } },
+      { $count: 'total' }
+    ];
+
+    const totalResult = await Order.aggregate(countPipeline);
+    const total = totalResult.length > 0 ? totalResult[0].total : 0;
     const totalPages = Math.ceil(total / parseInt(limit));
 
     res.json({
       success: true,
-      data: {
-        docs: orders,
+      orders: orders,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
         total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages
+        limit: parseInt(limit)
       }
     });
   } catch (error) {

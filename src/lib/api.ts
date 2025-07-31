@@ -714,23 +714,27 @@ class ApiService {
     return handleResponse(response);
   }
 
-  async getFarmerProducts(farmerId: string, params?: {
-    page?: number;
-    limit?: number;
-    status?: string;
-  }): Promise<ProductResponse> {
-    const queryParams = new URLSearchParams();
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined) {
-          queryParams.append(key, value.toString());
-        }
-      });
+  async getFarmerOrders(page: number = 1, limit: number = 10, statuses?: string | string[]): Promise<{ orders: any[]; pagination: any }> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('No authentication token found');
     }
 
-    const response = await fetch(`${this.baseURL}/products/farmer/${farmerId}?${queryParams}`, {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('limit', limit.toString());
+    if (statuses) {
+      if (Array.isArray(statuses)) {
+        statuses.forEach(status => params.append('status', status));
+      } else {
+        params.append('status', statuses);
+      }
+    }
+
+    const response = await fetch(`${this.baseURL}/orders/farmer/orders?${params}`, {
       method: 'GET',
       headers: {
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
     });
@@ -895,7 +899,7 @@ class ApiService {
     return handleResponse(response);
   }
 
-  async getUserOrders(page: number = 1, limit: number = 10, status?: string): Promise<{ orders: any[]; pagination: any }> {
+  async getUserOrders(page: number = 1, limit: number = 10, statuses?: string | string[]): Promise<{ orders: any[]; pagination: any }> {
     const token = getAuthToken();
     if (!token) {
       throw new Error('No authentication token found');
@@ -904,7 +908,13 @@ class ApiService {
     const params = new URLSearchParams();
     params.append('page', page.toString());
     params.append('limit', limit.toString());
-    if (status) params.append('status', status);
+    if (statuses) {
+      if (Array.isArray(statuses)) {
+        statuses.forEach(status => params.append('status', status));
+      } else {
+        params.append('status', statuses);
+      }
+    }
 
     const response = await fetch(`${this.baseURL}/orders/my-orders?${params}`, {
       method: 'GET',

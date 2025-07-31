@@ -42,6 +42,7 @@ app.use('/api/orders', require('./routes/orders'));
 app.use('/api/addresses', require('./routes/addresses'));
 app.use('/api/messages', require('./routes/messages'));
 app.use('/api/announcements', require('./routes/announcements'));
+app.use('/api/wishlist', require('./routes/wishlist'));
 
 app.use('/api/farmers', require('./routes/farmers'));
 app.use('/api/analytics', require('./routes/analytics'));

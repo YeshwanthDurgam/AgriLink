@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Package, MapPin, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { apiService } from '@/lib/api';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Order {
   id: string;
@@ -38,6 +39,7 @@ interface Order {
 
 const Orders = () => {
   const [activeTab, setActiveTab] = useState('all');
+  const { user } = useAuth();
 
   // Fetch orders using React Query
   const {
@@ -46,10 +48,17 @@ const Orders = () => {
     error,
     refetch
   } = useQuery({
-    queryKey: ['orders', activeTab],
-    queryFn: () => apiService.getUserOrders(1, 50, activeTab === 'all' ? undefined : activeTab),
+    queryKey: ['orders', activeTab, user?.role],
+    queryFn: () => {
+      if (user?.role === 'farmer') {
+        return apiService.getFarmerOrders(1, 50, activeTab === 'all' ? undefined : activeTab);
+      } else {
+        return apiService.getUserOrders(1, 50, activeTab === 'all' ? undefined : activeTab);
+      }
+    },
     staleTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2
+    retry: 2,
+    enabled: !!user, // Only fetch if user is available
   });
 
   const orders = ordersData?.orders || [];
@@ -89,11 +98,6 @@ const Orders = () => {
     }
   };
 
-  const filterOrdersByStatus = (status?: string) => {
-    if (!status || status === 'all') return orders;
-    return orders.filter(order => order.orderStatus === status);
-  };
-
   const OrderCard = ({ order }: { order: any }) => (
     <Card className="mb-4">
       <CardContent className="p-6">
@@ -109,7 +113,7 @@ const Orders = () => {
         </div>
 
         <div className="space-y-3 mb-4">
-          {order.items.map((item: any, index: number) => (
+          {order.items.filter(item => item && item.product).map((item: any, index: number) => (
             <div key={item.product._id || index} className="flex justify-between items-center">
               <div>
                 <div className="font-medium">{item.name || item.product.name}</div>
@@ -188,25 +192,25 @@ const Orders = () => {
           </TabsContent>
           
           <TabsContent value="pending">
-            {filterOrdersByStatus('pending').map((order) => (
+            {orders.filter(order => order.orderStatus === 'pending').map((order) => (
               <OrderCard key={order._id} order={order} />
             ))}
           </TabsContent>
           
           <TabsContent value="shipped">
-            {filterOrdersByStatus('shipped').map((order) => (
+            {orders.filter(order => order.orderStatus === 'shipped').map((order) => (
               <OrderCard key={order._id} order={order} />
             ))}
           </TabsContent>
           
           <TabsContent value="delivered">
-            {filterOrdersByStatus('delivered').map((order) => (
+            {orders.filter(order => order.orderStatus === 'delivered').map((order) => (
               <OrderCard key={order._id} order={order} />
             ))}
           </TabsContent>
           
           <TabsContent value="cancelled">
-            {filterOrdersByStatus('cancelled').map((order) => (
+            {orders.filter(order => order.orderStatus === 'cancelled').map((order) => (
               <OrderCard key={order._id} order={order} />
             ))}
           </TabsContent>

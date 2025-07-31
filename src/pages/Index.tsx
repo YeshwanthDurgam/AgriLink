@@ -110,11 +110,18 @@ const Index = () => {
 
   const [carouselIndex, setCarouselIndex] = useState(0);
 
-  const stats = [
+  const { data: statsData } = useQuery({
+    queryKey: ['sitewide-stats'],
+    queryFn: () => apiService.get('/analytics/sitewide-stats'),
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    retry: 2
+  });
+
+  const [stats, setStats] = useState([
     { 
       icon: Users, 
       label: "Active Farmers", 
-      value: "1000+", 
+      value: "Loading...", 
       color: "text-green-600",
       bgColor: "bg-green-50",
       description: "Trusted farmers across India"
@@ -122,7 +129,7 @@ const Index = () => {
     { 
       icon: ShoppingCart, 
       label: "Products Available", 
-      value: "5000+", 
+      value: "Loading...", 
       color: "text-blue-600",
       bgColor: "bg-blue-50",
       description: "Fresh produce varieties"
@@ -130,7 +137,7 @@ const Index = () => {
     { 
       icon: Truck, 
       label: "Deliveries Made", 
-      value: "10,000+", 
+      value: "Loading...", 
       color: "text-purple-600",
       bgColor: "bg-purple-50",
       description: "Happy customers served"
@@ -138,15 +145,27 @@ const Index = () => {
     { 
       icon: Star, 
       label: "Customer Rating", 
-      value: "4.8/5", 
+      value: "Loading...", 
       color: "text-yellow-600",
       bgColor: "bg-yellow-50",
       description: "Excellent satisfaction rate"
     }
-  ];
+  ]);
 
-  const categories = [
+  useEffect(() => {
+    if (statsData) {
+      setStats([
+        { ...stats[0], value: statsData ? `${statsData.data.farmers}+` : "Loading..." },
+        { ...stats[1], value: statsData ? `${statsData.data.products}+` : "Loading..." },
+        { ...stats[2], value: statsData ? `${statsData.data.orders}+` : "Loading..." },
+        { ...stats[3], value: "4.8/5" } // Assuming rating is static for now
+      ]);
+    }
+  }, [statsData]);
+
+  const [categories, setCategories] = useState([
     {
+      id: "vegetables",
       name: "Vegetables",
       icon: Leaf,
       color: "bg-green-500",
@@ -155,6 +174,7 @@ const Index = () => {
       description: "Fresh organic vegetables"
     },
     {
+      id: "fruits",
       name: "Fruits",
       icon: Apple,
       color: "bg-red-500",
@@ -163,6 +183,7 @@ const Index = () => {
       description: "Seasonal fresh fruits"
     },
     {
+      id: "grains",
       name: "Grains",
       icon: Wheat,
       color: "bg-yellow-500",
@@ -171,6 +192,7 @@ const Index = () => {
       description: "Quality grains & cereals"
     },
     {
+      id: "herbs",
       name: "Herbs",
       icon: Sprout,
       color: "bg-purple-500",
@@ -179,6 +201,7 @@ const Index = () => {
       description: "Aromatic herbs & spices"
     },
     {
+      id: "dairy",
       name: "Dairy",
       icon: Milk,
       color: "bg-blue-500",
@@ -187,6 +210,7 @@ const Index = () => {
       description: "Fresh dairy products"
     },
     {
+      id: "seeds",
       name: "Seeds",
       icon: Droplets,
       color: "bg-orange-500",
@@ -194,7 +218,26 @@ const Index = () => {
       count: "120+",
       description: "Premium quality seeds"
     }
-  ];
+  ]);
+
+  useEffect(() => {
+    const fetchCategoryCounts = async () => {
+      try {
+        const response = await apiService.get('/analytics/category-counts');
+        const counts = response;
+        setCategories(prevCategories => 
+          prevCategories.map(cat => {
+            const match = counts.find(c => c.category.toLowerCase().includes(cat.id.toLowerCase()));
+            return match ? { ...cat, count: `${match.count}+` } : cat;
+          })
+        );
+      } catch (error) {
+        console.error("Error fetching category counts:", error);
+      }
+    };
+
+    fetchCategoryCounts();
+  }, []);
 
   const testimonials = [
     {
@@ -442,7 +485,7 @@ const Index = () => {
                 <Card 
                   key={index} 
                   className="text-center border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 cursor-pointer group"
-                  onClick={() => navigate(`/marketplace?category=${category.name}`)}
+                  onClick={() => navigate(`/category/${category.id}`)}
                 >
                   <CardContent className="p-6">
                     <div className={`w-12 h-12 ${category.bgColor} rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform duration-300`}>

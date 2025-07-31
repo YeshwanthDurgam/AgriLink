@@ -57,12 +57,12 @@ const Header = () => {
   // Fetch orders data for header display
   const { data: ordersData } = useQuery({
     queryKey: ['orders', 'header'], // Use a specific query key for header orders
-    queryFn: () => apiService.getUserOrders(1, 10, 'pending'), // Fetch only pending orders for the count
+    queryFn: () => apiService.getUserOrders(1, 10, ['pending', 'confirmed']), // Fetch pending and confirmed orders
     staleTime: 60 * 1000, // 1 minute
     enabled: isAuthenticated, // Only fetch if user is authenticated
   });
 
-  const orderCount = ordersData?.orders?.length || 0;
+  const orderCount = ordersData?.pagination?.total || 0;
 
   const handleLogout = () => {
     logout();
@@ -172,7 +172,7 @@ const Header = () => {
                 <div className="relative">
                   <Package className="h-6 w-6 group-hover:scale-110 transition-transform duration-200" />
                   {orderCount > 0 && (
-                    <Badge className="absolute -top-1 -right-1 bg-blue-500 text-white min-w-[20px] h-6 flex items-center justify-center text-xs font-bold shadow-lg animate-pulse-glow">
+                    <Badge className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold shadow-lg animate-pulse-glow">
                       {orderCount}
                     </Badge>
                   )}

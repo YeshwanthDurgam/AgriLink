@@ -38,6 +38,8 @@ import DashboardLayout from './components/DashboardLayout';
 import CategoryPage from "./pages/CategoryPage";
 import WishlistPage from "./pages/WishlistPage";
 
+import ScrollToTop from "./components/ScrollToTop";
+
 const queryClient = new QueryClient();
 
 function AdminPanel() {
@@ -54,6 +56,7 @@ function App() {
       <AuthProvider>
         <CartProvider>
           <Router>
+            <ScrollToTop />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />

@@ -103,7 +103,8 @@ async function checkDatabase() {
         pincode: '123456'
       },
       subtotal: 100,
-      total: 100
+      total: 100,
+      region: "Test Region"
     });
 
     await testOrder.save();
