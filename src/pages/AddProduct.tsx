@@ -20,6 +20,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { apiService, CreateProductData } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 const AddProduct = () => {
@@ -31,6 +32,7 @@ const AddProduct = () => {
   const [farmers, setFarmers] = useState<any[]>([]);
   const [selectedFarmer, setSelectedFarmer] = useState<string>('');
   const [errorBoundary, setErrorBoundary] = useState<string | null>(null);
+  const { user } = useAuth();
 
   const [formData, setFormData] = useState<any>({
     name: '',
@@ -76,29 +78,31 @@ const AddProduct = () => {
   const qualityGrades = ['Premium', 'Grade A', 'Grade B', 'Standard'];
   const certifications = ['Organic', 'GAP', 'HACCP', 'ISO', 'FSSAI', 'Other'];
 
-  // Fetch farmers for admin selection
+  // Fetch farmers for admin selection; for farmer role, auto-select self
   useEffect(() => {
-    async function fetchFarmers() {
-      try {
-        const res = await apiService.get('/admin/farmers');
-        console.log('API /admin/farmers response:', res);
-        // Try to find the array of farmers in the response
-        let farmerArr = [];
-        if (Array.isArray(res.data)) {
-          farmerArr = res.data;
-        } else if (res.data && Array.isArray(res.data.farmers)) {
-          farmerArr = res.data.farmers;
-        } else if (res.data && Array.isArray(res.data.docs)) {
-          farmerArr = res.data.docs;
-        }
-        setFarmers(farmerArr);
-      } catch (e) {
-        toast.error('Failed to load farmers');
-        setFarmers([]);
-      }
+    const role = user?.role;
+    if (role === 'farmer') {
+      // Auto-select the logged-in farmer and skip network call
+      const selfId = (user as any)?._id || user?.id;
+      if (selfId) setSelectedFarmer(selfId);
+      setFarmers([]);
+      return;
     }
-    fetchFarmers();
-  }, []);
+
+    if (role === 'admin') {
+      (async () => {
+        try {
+          const res = await apiService.getFarmersAdmin();
+          const farmerArr = Array.isArray((res as any)?.farmers) ? (res as any).farmers : [];
+          setFarmers(farmerArr);
+        } catch (e: any) {
+          console.error('Failed to load farmers for admin:', e);
+          toast.error('Failed to load farmers');
+          setFarmers([]);
+        }
+      })();
+    }
+  }, [user]);
 
   // Handle form input changes
   const handleInputChange = (field: keyof CreateProductData, value: any) => {
@@ -207,7 +211,8 @@ const AddProduct = () => {
     if (!formData.unit) {
       newErrors.unit = 'Unit is required';
     }
-    if (!selectedFarmer) {
+    // Only admins must explicitly select a farmer
+    if (user?.role === 'admin' && !selectedFarmer) {
       newErrors.farmer = 'Farmer is required';
     }
     setErrors(newErrors);
@@ -241,7 +246,7 @@ const AddProduct = () => {
           files: uploadedImages
         });
       } else {
-        navigate('/admin/products');
+        navigate(user?.role === 'admin' ? '/admin/products' : '/manage-products');
       }
     },
     onError: (error: any) => {
@@ -256,7 +261,7 @@ const AddProduct = () => {
       apiService.uploadProductImages(productId, files),
     onSuccess: () => {
       // No need to show a separate success toast for images
-      navigate('/admin/products');
+      navigate(user?.role === 'admin' ? '/admin/products' : '/manage-products');
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to upload images');
@@ -272,12 +277,12 @@ const AddProduct = () => {
     if (!validateForm()) {
       return;
     }
-    if (!selectedFarmer) {
+    if (user?.role === 'admin' && !selectedFarmer) {
       toast.error('Please select a farmer for this product');
       return;
     }
     setIsSubmitting(true);
-    const payload = {
+    const payload: any = {
       ...formData,
       price: formData.price === '' ? undefined : Number(formData.price),
       basePrice: formData.basePrice === '' ? undefined : Number(formData.basePrice),
@@ -288,8 +293,10 @@ const AddProduct = () => {
       deliveryRadius: formData.deliveryRadius === '' ? undefined : Number(formData.deliveryRadius),
       deliveryTime: formData.deliveryTime === '' ? undefined : Number(formData.deliveryTime),
       expiryDate: formData.expiryDate === '' ? undefined : formData.expiryDate,
-      farmer: selectedFarmer
     };
+    if (user?.role === 'admin') {
+      payload.farmer = selectedFarmer;
+    }
     createProductMutation.mutate(payload);
   };
 
@@ -306,27 +313,40 @@ const AddProduct = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Farmer Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Farmer</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Label htmlFor="farmer">Select Farmer *</Label>
-                <Select value={selectedFarmer} onValueChange={setSelectedFarmer}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a farmer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {farmers.map(farmer => (
-                      <SelectItem key={farmer._id} value={farmer._id}>
-                        {farmer.name} ({farmer.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
+            {/* Farmer Selection (admins only). Farmers create for themselves automatically */}
+            {user?.role === 'admin' ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Farmer</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Label htmlFor="farmer">Select Farmer *</Label>
+                  <Select value={selectedFarmer} onValueChange={setSelectedFarmer}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a farmer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {farmers.map(farmer => (
+                        <SelectItem key={farmer._id} value={farmer._id}>
+                          {farmer.name} ({farmer.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Farmer</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-sm text-gray-700">
+                    Creating product as: <span className="font-medium">{user?.name}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             {/* Basic Information */}
                 <Card>
                   <CardHeader>

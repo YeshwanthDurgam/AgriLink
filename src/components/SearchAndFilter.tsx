@@ -12,6 +12,7 @@ interface SearchAndFilterProps {
   onFilter: (filters: FilterOptions) => void;
   categories: string[];
   locations: string[];
+  facetCounts?: { categories?: Array<{ value: string; count: number }>; locations?: Array<{ value: string; count: number }> };
 }
 
 interface FilterOptions {
@@ -21,12 +22,12 @@ interface FilterOptions {
   sortBy: string;
 }
 
-const SearchAndFilter = ({ onSearch, onFilter, categories, locations }: SearchAndFilterProps) => {
+const SearchAndFilter = ({ onSearch, onFilter, categories, locations, facetCounts }: SearchAndFilterProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<FilterOptions>({
-    category: "",
-    location: "",
+    category: "all",
+    location: "all",
     priceRange: [0, 1000],
     sortBy: "newest"
   });
@@ -45,8 +46,8 @@ const SearchAndFilter = ({ onSearch, onFilter, categories, locations }: SearchAn
 
   const updateActiveFilters = (currentFilters: FilterOptions) => {
     const active: string[] = [];
-    if (currentFilters.category) active.push(`Category: ${currentFilters.category}`);
-    if (currentFilters.location) active.push(`Location: ${currentFilters.location}`);
+    if (currentFilters.category && currentFilters.category !== 'all') active.push(`Category: ${currentFilters.category}`);
+    if (currentFilters.location && currentFilters.location !== 'all') active.push(`Location: ${currentFilters.location}`);
     if (currentFilters.priceRange[0] > 0 || currentFilters.priceRange[1] < 1000) {
       active.push(`Price: ₹${currentFilters.priceRange[0]} - ₹${currentFilters.priceRange[1]}`);
     }
@@ -56,8 +57,8 @@ const SearchAndFilter = ({ onSearch, onFilter, categories, locations }: SearchAn
 
   const clearFilter = (filterText: string) => {
     const newFilters = { ...filters };
-    if (filterText.startsWith("Category:")) newFilters.category = "";
-    if (filterText.startsWith("Location:")) newFilters.location = "";
+    if (filterText.startsWith("Category:")) newFilters.category = "all";
+    if (filterText.startsWith("Location:")) newFilters.location = "all";
     if (filterText.startsWith("Price:")) newFilters.priceRange = [0, 1000];
     if (filterText.startsWith("Sort:")) newFilters.sortBy = "newest";
     
@@ -68,8 +69,8 @@ const SearchAndFilter = ({ onSearch, onFilter, categories, locations }: SearchAn
 
   const clearAllFilters = () => {
     const defaultFilters = {
-      category: "",
-      location: "",
+      category: "all",
+      location: "all",
       priceRange: [0, 1000] as [number, number],
       sortBy: "newest"
     };
@@ -140,12 +141,15 @@ const SearchAndFilter = ({ onSearch, onFilter, categories, locations }: SearchAn
                     <SelectValue placeholder="All categories" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All categories</SelectItem>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="all">All categories</SelectItem>
+                    {categories.map((category) => {
+                      const count = facetCounts?.categories?.find(c => (c.value || '').toLowerCase() === category.toLowerCase())?.count;
+                      return (
+                        <SelectItem key={category} value={category}>
+                          {category}{typeof count === 'number' ? ` (${count})` : ''}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
@@ -157,12 +161,15 @@ const SearchAndFilter = ({ onSearch, onFilter, categories, locations }: SearchAn
                     <SelectValue placeholder="All locations" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All locations</SelectItem>
-                    {locations.map((location) => (
-                      <SelectItem key={location} value={location}>
-                        {location}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="all">All locations</SelectItem>
+                    {locations.map((location) => {
+                      const count = facetCounts?.locations?.find(c => (c.value || '') == null ? false : (c.value || '').toLowerCase() === location.toLowerCase())?.count;
+                      return (
+                        <SelectItem key={location} value={location}>
+                          {location}{typeof count === 'number' ? ` (${count})` : ''}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>

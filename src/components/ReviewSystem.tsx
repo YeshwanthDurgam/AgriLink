@@ -3,7 +3,7 @@ import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService, Review } from '../lib/api';
 import { getImageUrl } from '../lib/utils';
-import { Star, Camera, Video, Upload, X, Play, Pause } from 'lucide-react';
+import { Star, Camera, Video, Upload, X, Play, Pause, ThumbsUp } from 'lucide-react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -488,8 +488,16 @@ const ReviewSystem: React.FC<ReviewSystemProps> = ({ productId, productName }) =
                         variant="ghost"
                         size="sm"
                         className="text-sm"
+                        onClick={async () => {
+                          try {
+                            await apiService.toggleReviewHelpful((review as any)._id || (review as any).id);
+                            queryClient.invalidateQueries({ queryKey: ['product-reviews', productId] });
+                          } catch (err) {
+                            toast({ title: 'Failed to update helpful vote', variant: 'destructive' });
+                          }
+                        }}
                       >
-                        Helpful ({review.helpful?.count || 0})
+                        <ThumbsUp className="w-4 h-4 mr-1" /> Helpful ({review.helpful?.count || 0})
                       </Button>
                     </div>
                   </div>

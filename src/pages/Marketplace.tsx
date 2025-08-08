@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import ProductCard from "@/components/ProductCard";
 import SearchAndFilter from "@/components/SearchAndFilter";
@@ -20,15 +20,22 @@ interface FilterOptions {
 }
 
 const Marketplace = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState<string>(searchParams.get('q') || "");
+  const [currentPage, setCurrentPage] = useState<number>(parseInt(searchParams.get('page') || "1", 10) || 1);
   const [filters, setFilters] = useState<FilterOptions>({
-    category: "",
-    location: "",
-    priceRange: [0, 1000],
-    sortBy: "newest"
+    category: (searchParams.get('category') as string) || "all",
+    location: (searchParams.get('location') as string) || "all",
+    priceRange: [
+      parseInt(searchParams.get('minPrice') || "0", 10) || 0,
+      parseInt(searchParams.get('maxPrice') || "1000", 10) || 1000
+    ],
+    sortBy: (searchParams.get('sortBy') as any) || "newest"
   });
   const { getTotalItems } = useCart();
+  const queryClient = useQueryClient();
+  // Stable key for filters used across queries
+  const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
 
   // Fetch unique categories and locations from products
   const { data: filterData } = useQuery({
@@ -41,6 +48,21 @@ const Marketplace = () => {
       return { categories, locations };
     },
     staleTime: 60 * 60 * 1000, // 1 hour
+  });
+
+  // Fetch facets based on current filters
+  const { data: facetsData } = useQuery({
+    queryKey: ['facets', filtersKey, searchQuery],
+    queryFn: () => apiService.getFacets({
+      category: filters.category && filters.category !== 'all' ? filters.category : undefined,
+      location: filters.location && filters.location !== 'all' ? filters.location : undefined,
+      organic: undefined, // add when we expose it in UI
+      minPrice: filters.priceRange[0] > 0 ? filters.priceRange[0] : undefined,
+      maxPrice: filters.priceRange[1] < 1000 ? filters.priceRange[1] : undefined,
+      search: searchQuery || undefined,
+    }),
+    staleTime: 60 * 1000,
+    keepPreviousData: true,
   });
 
   const categories = filterData?.categories || [];
@@ -58,7 +80,7 @@ const Marketplace = () => {
       params.search = searchQuery;
     }
 
-    if (filters.category) {
+    if (filters.category && filters.category !== 'all') {
       params.category = filters.category;
     }
 
@@ -93,23 +115,56 @@ const Marketplace = () => {
     return params;
   };
 
+  // Sync state → URL
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchQuery) params.set('q', searchQuery);
+    if (filters.category && filters.category !== 'all') params.set('category', filters.category);
+    if (filters.location && filters.location !== 'all') params.set('location', filters.location);
+    if (filters.priceRange[0] > 0) params.set('minPrice', String(filters.priceRange[0]));
+    if (filters.priceRange[1] < 1000) params.set('maxPrice', String(filters.priceRange[1]));
+    if (filters.sortBy) params.set('sortBy', filters.sortBy);
+    params.set('page', String(currentPage));
+    setSearchParams(params, { replace: true });
+  }, [searchQuery, filters, currentPage, setSearchParams]);
+
   // Fetch products using React Query
+  // filtersKey already declared above
   const {
     data: productsData,
     isLoading,
     error,
     refetch
   } = useQuery({
-    queryKey: ['products', currentPage, filters, searchQuery],
+    queryKey: ['products', currentPage, filtersKey, searchQuery],
     queryFn: () => apiService.getProducts(getApiParams()),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2
+    staleTime: 60 * 1000,
+    keepPreviousData: true,
+    retry: 1,
   });
 
+  // Prefetch next page when we have current data and there is a next page
+  useEffect(() => {
+    if (productsData?.pagination?.hasNextPage) {
+      const nextPage = productsData.pagination.currentPage + 1;
+      const nextParams = { ...getApiParams(), page: nextPage } as any;
+      queryClient.prefetchQuery({
+        queryKey: ['products', nextPage, filtersKey, searchQuery],
+        queryFn: () => apiService.getProducts(nextParams),
+        staleTime: 60 * 1000,
+      });
+    }
+  }, [productsData, filtersKey, searchQuery, queryClient]);
+
   // Handle search
+  // Debounced search handler
+  const debounceRef = useRef<number | null>(null);
   const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    setCurrentPage(1); // Reset to first page on new search
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(() => {
+      setSearchQuery(query);
+      setCurrentPage(1);
+    }, 250);
   };
 
   // Handle filter changes
@@ -175,6 +230,7 @@ const Marketplace = () => {
             onFilter={handleFilter}
             categories={categories}
             locations={locations}
+            facetCounts={facetsData?.facets}
           />
         </div>
 
@@ -184,8 +240,8 @@ const Marketplace = () => {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => handleFilter({ ...filters, category: '' })}
-              className={`whitespace-nowrap ${!filters.category ? 'bg-green-100 border-green-500 text-green-700' : ''}`}
+              onClick={() => handleFilter({ ...filters, category: 'all' })}
+              className={`whitespace-nowrap ${!filters.category || filters.category === 'all' ? 'bg-green-100 border-green-500 text-green-700' : ''}`}
             >
               All
             </Button>
@@ -267,6 +323,11 @@ const Marketplace = () => {
                   showFarmerInfo={true}
                 />
               ))}
+              {isLoading && (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={`skeleton-${i}`} className="animate-pulse bg-gray-100 rounded-lg h-64" />
+                ))
+              )}
             </div>
 
             {/* Pagination */}

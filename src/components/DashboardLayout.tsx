@@ -68,21 +68,21 @@ const DashboardLayout = ({ children, userRole }: DashboardLayoutProps) => {
   const navItems = getNavItems();
 
   return (
-    <div className="h-screen bg-gray-50">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Sidebar */}
-      <div className="fixed top-0 left-0 h-full w-64 bg-white shadow-sm border-r border-gray-200 z-20">
-        <div className="p-6 border-b border-gray-200">
+      <aside className="fixed top-0 left-0 h-full w-64 bg-white/90 backdrop-blur border-r border-border z-20">
+        <div className="p-6 border-b border-border">
           <Link to="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
+            <div className="w-9 h-9 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
               <span className="text-white font-bold text-sm">A</span>
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">AgriDirect</h2>
-              <p className="text-sm text-gray-500 capitalize">{userRole} Portal</p>
+              <h2 className="text-lg font-semibold">AgriDirect</h2>
+              <p className="text-xs text-muted-foreground capitalize">{userRole} Portal</p>
             </div>
           </Link>
         </div>
-        <nav className="mt-6">
+        <nav className="mt-4">
           <div className="px-3">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -92,10 +92,10 @@ const DashboardLayout = ({ children, userRole }: DashboardLayoutProps) => {
                   key={item.href}
                   to={item.href}
                   className={cn(
-                    "flex items-center px-3 py-2 mb-1 text-sm font-medium rounded-lg transition-colors",
+                    "flex items-center px-3 py-2.5 mb-1 rounded-lg text-sm font-medium transition-all",
                     isActive
                       ? "bg-green-100 text-green-700"
-                      : "text-gray-700 hover:bg-gray-100"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                   )}
                 >
                   <Icon className="w-5 h-5 mr-3 flex-shrink-0" />
@@ -105,11 +105,11 @@ const DashboardLayout = ({ children, userRole }: DashboardLayoutProps) => {
             })}
           </div>
         </nav>
-      </div>
+      </aside>
 
       {/* Main Content */}
-      <div className="ml-64 h-full flex flex-col">
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 px-6 py-8">
+      <div className="ml-64">
+        <main className="min-h-screen px-6 py-8">
           {children}
         </main>
       </div>

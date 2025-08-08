@@ -44,25 +44,34 @@ const Header = () => {
 
   console.log("Header User Role:", user?.role); // Add this line
 
-  // Fetch wishlist data for header display
+  // Fetch wishlist data (buyers only)
   const { data: wishlistData } = useQuery({
     queryKey: ['wishlist'],
     queryFn: () => apiService.getWishlist(),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    enabled: isAuthenticated, // Only fetch if user is authenticated
+    enabled: isAuthenticated && user?.role === 'buyer',
   });
 
   const wishlistCount = wishlistData?.wishlist?.products?.length || 0;
 
-  // Fetch orders data for header display
-  const { data: ordersData } = useQuery({
-    queryKey: ['orders', 'header'], // Use a specific query key for header orders
-    queryFn: () => apiService.getUserOrders(1, 10, ['pending', 'confirmed']), // Fetch pending and confirmed orders
-    staleTime: 60 * 1000, // 1 minute
-    enabled: isAuthenticated, // Only fetch if user is authenticated
+  // Buyer orders (buyers only)
+  const { data: buyerOrdersData } = useQuery({
+    queryKey: ['orders', 'header', 'buyer'],
+    queryFn: () => apiService.getUserOrders(1, 10, ['pending', 'confirmed']),
+    staleTime: 60 * 1000,
+    enabled: isAuthenticated && user?.role === 'buyer',
+  });
+  // Farmer orders (farmers only)
+  const { data: farmerOrdersData } = useQuery({
+    queryKey: ['orders', 'header', 'farmer'],
+    queryFn: () => apiService.getFarmerOrders(1, 10, ['pending', 'confirmed']),
+    staleTime: 60 * 1000,
+    enabled: isAuthenticated && user?.role === 'farmer',
   });
 
-  const orderCount = ordersData?.pagination?.total || 0;
+  const orderCount = (user?.role === 'farmer'
+    ? (farmerOrdersData?.pagination?.total || 0)
+    : (buyerOrdersData?.pagination?.total || 0));
 
   const handleLogout = () => {
     logout();
@@ -156,6 +165,7 @@ const Header = () => {
           <div className="flex items-center space-x-2 sm:space-x-4 md:space-x-6">
             {/* Desktop Actions */}
             <div className="hidden md:flex items-center space-x-6">
+              {/* Theme toggle removed */}
               {/* Wishlist */}
               <Link to="/wishlist" className="flex flex-col items-center text-xs hover:text-green-600 transition-all duration-200 group">
                 <div className="relative">

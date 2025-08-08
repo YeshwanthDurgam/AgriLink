@@ -10,11 +10,15 @@ import { useToast } from '@/components/ui/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService, Product } from '@/lib/api';
 import { Upload, X, Star, Trash2, Image as ImageIcon, Plus } from 'lucide-react';
+import { getImageUrl } from '@/lib/utils';
+import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
 interface EditProductDialogProps {
   product: Product | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSaved?: (updated: Product) => void;
 }
 
 interface EditFormData {
@@ -44,7 +48,8 @@ interface EditFormData {
 const EditProductDialog: React.FC<EditProductDialogProps> = ({
   product,
   open,
-  onOpenChange
+  onOpenChange,
+  onSaved,
 }) => {
   const [formData, setFormData] = useState<EditFormData>({
     name: '',
@@ -71,6 +76,7 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
   });
 
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [deletingImage, setDeletingImage] = useState<string | null>(null);
   const [editingImageUrls, setEditingImageUrls] = useState(false);
   const [imageUrls, setImageUrls] = useState<Array<{ url: string; alt: string; isPrimary: boolean }>>([]);
@@ -117,9 +123,62 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
   // Update product mutation
   const updateProductMutation = useMutation({
     mutationFn: (data: any) => apiService.updateProduct(product!._id || product!.id, data),
-    onSuccess: () => {
-      toast({ title: 'Success', description: 'Product updated successfully' });
+    onSuccess: (result) => {
+      const productId = product!._id || product!.id;
+      const updatedFromServer = result?.product as any;
+      const optimisticUpdated = {
+        ...(product as any),
+        ...updatedFromServer,
+        // Fallback to formData merge if server didn't return full object
+        name: updatedFromServer?.name ?? formData.name,
+        description: updatedFromServer?.description ?? formData.description,
+        category: updatedFromServer?.category ?? formData.category,
+        subcategory: updatedFromServer?.subcategory ?? formData.subcategory,
+        basePrice: updatedFromServer?.basePrice ?? parseFloat(formData.basePrice),
+        unit: updatedFromServer?.unit ?? formData.unit,
+        minOrderQuantity: updatedFromServer?.minOrderQuantity ?? parseInt(formData.minOrderQuantity),
+        maxOrderQuantity: updatedFromServer?.maxOrderQuantity ?? (formData.maxOrderQuantity ? parseInt(formData.maxOrderQuantity) : undefined),
+        quantity: updatedFromServer?.quantity ?? parseInt(formData.quantity),
+        organic: updatedFromServer?.organic ?? formData.organic,
+        qualityGrade: updatedFromServer?.qualityGrade ?? formData.qualityGrade,
+        harvestDate: updatedFromServer?.harvestDate ?? formData.harvestDate,
+        expiryDate: updatedFromServer?.expiryDate ?? (formData.expiryDate || undefined),
+        shelfLife: updatedFromServer?.shelfLife ?? (formData.shelfLife ? parseInt(formData.shelfLife) : undefined),
+        farmName: updatedFromServer?.farmName ?? formData.farmName,
+        farmLocation: updatedFromServer?.farmLocation ?? formData.farmLocation,
+        deliveryRadius: updatedFromServer?.deliveryRadius ?? parseInt(formData.deliveryRadius),
+        deliveryTime: updatedFromServer?.deliveryTime ?? parseInt(formData.deliveryTime),
+        status: updatedFromServer?.status ?? formData.status,
+        tags: updatedFromServer?.tags ?? formData.tags.split(',').map(t => t.trim()).filter(Boolean),
+        searchKeywords: updatedFromServer?.searchKeywords ?? formData.searchKeywords.split(',').map(k => k.trim()).filter(Boolean),
+      };
+
+      // 1) Optimistically update all 'products' queries
+      const productsCaches = queryClient.getQueriesData({ queryKey: ['products'] });
+      productsCaches.forEach(([key, oldData]: any) => {
+        if (!oldData?.products) return;
+        const newProducts = oldData.products.map((p: any) => {
+          const id = p.id || p._id;
+          return id === productId ? { ...p, ...optimisticUpdated } : p;
+        });
+        queryClient.setQueryData(key, { ...oldData, products: newProducts });
+      });
+
+      // 2) Optimistically update the specific 'product' query
+      queryClient.setQueryData(['product', productId], (old: any) => old ? { ...old, ...optimisticUpdated } : optimisticUpdated);
+
+      // 3) Invalidate as a safety net to refetch fresh data
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['product', productId] });
+      queryClient.invalidateQueries({ queryKey: ['featured-products'] });
+      queryClient.invalidateQueries({ queryKey: ['all-products-home'] });
+
+      // Notify parent to update local state immediately
+      if (onSaved && updatedFromServer) {
+        onSaved(updatedFromServer as Product);
+      }
+
+      toast({ title: 'Success', description: 'Product updated successfully' });
       onOpenChange(false);
     },
     onError: (error: any) => {
@@ -130,24 +189,45 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
 
   // Upload images mutation
   const uploadImagesMutation = useMutation({
-    mutationFn: (files: File[]) => apiService.uploadProductImages(product!._id || product!.id, files),
-    onSuccess: () => {
+    mutationFn: (files: File[]) => apiService.uploadProductImages(
+      product!._id || product!.id,
+      files,
+      (p) => setUploadProgress(p)
+    ),
+    onSuccess: (res: any) => {
       toast({ title: 'Success', description: 'Images uploaded successfully' });
+      // Update local dialog state so new images are visible immediately
+      if (Array.isArray(res?.images)) {
+        setImageUrls(res.images.map((img: any) => ({
+          url: img.url,
+          alt: img.alt || '',
+          isPrimary: !!img.isPrimary,
+        })));
+      }
       queryClient.invalidateQueries({ queryKey: ['products'] });
       setUploadingImages(false);
+      setUploadProgress(null);
     },
     onError: (error: any) => {
       const message = error?.message || (error?.response?.data?.message) || 'Failed to upload images';
       toast({ title: 'Error', description: message, variant: 'destructive' });
       setUploadingImages(false);
+      setUploadProgress(null);
     }
   });
 
   // Delete image mutation
   const deleteImageMutation = useMutation({
     mutationFn: (imageId: string) => apiService.deleteProductImage(product!._id || product!.id, imageId),
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       toast({ title: 'Success', description: 'Image deleted successfully' });
+      if (Array.isArray(res?.images)) {
+        setImageUrls(res.images.map((img: any) => ({
+          url: img.url,
+          alt: img.alt || '',
+          isPrimary: !!img.isPrimary,
+        })));
+      }
       queryClient.invalidateQueries({ queryKey: ['products'] });
       setDeletingImage(null);
     },
@@ -218,8 +298,15 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
   const updateImageUrlsMutation = useMutation({
     mutationFn: (images: Array<{ url: string; alt?: string; isPrimary?: boolean }>) => 
       apiService.updateProductImageUrls(product!._id || product!.id, images),
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       toast({ title: 'Success', description: 'Image URLs updated successfully' });
+      if (Array.isArray(res?.images)) {
+        setImageUrls(res.images.map((img: any) => ({
+          url: img.url,
+          alt: img.alt || '',
+          isPrimary: !!img.isPrimary,
+        })));
+      }
       queryClient.invalidateQueries({ queryKey: ['products'] });
       setEditingImageUrls(false);
     },
@@ -233,6 +320,67 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
     setImageUrls(prev => prev.map((img, i) => 
       i === index ? { ...img, [field]: value } : img
     ));
+  };
+
+  // DnD image item
+  const moveImage = (from: number, to: number) => {
+    setImageUrls(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+  const ImageTile: React.FC<{ image: any; index: number; onDelete: (idx: number) => void; }> = ({ image, index, onDelete }) => {
+    const ref = useRef<HTMLDivElement>(null);
+    const [, drop] = useDrop({
+      accept: 'img',
+      hover(item: any) {
+        if (!ref.current) return;
+        const dragIndex = item.index;
+        const hoverIndex = index;
+        if (dragIndex === hoverIndex) return;
+        moveImage(dragIndex, hoverIndex);
+        item.index = hoverIndex;
+      }
+    });
+    const [, drag] = useDrag({ type: 'img', item: { index } });
+    drag(drop(ref));
+    return (
+      <div ref={ref} className="relative group">
+        <img
+          src={getImageUrl(image.url)}
+          alt={image.alt || `Product image ${index + 1}`}
+          className="w-full h-32 object-cover rounded-lg border"
+          onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder.svg'; }}
+        />
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            onClick={() => onDelete(index)}
+            disabled={deletingImage === String(index)}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+          <Button
+            type="button"
+            variant={image.isPrimary ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleImageUrlChange(index, 'isPrimary', true)}
+          >
+            <Star className="w-4 h-4" />
+          </Button>
+        </div>
+        {image.isPrimary && (
+          <Badge className="absolute top-2 left-2 bg-yellow-500">
+            <Star className="w-3 h-3 mr-1" />
+            Primary
+          </Badge>
+        )}
+      </div>
+    );
   };
 
   const handleAddImageUrl = () => {
@@ -294,7 +442,7 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
                   disabled={uploadingImages}
                 >
                   <Upload className="w-4 h-4 mr-2" />
-                  {uploadingImages ? 'Uploading...' : 'Upload Images'}
+                  {uploadingImages ? (uploadProgress !== null ? `Uploading ${uploadProgress}%` : 'Uploading...') : 'Upload Images'}
                 </Button>
               </div>
             </div>
@@ -366,45 +514,25 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {product.images && product.images.length > 0 ? (
-                  product.images.map((image, index) => (
-                    <div key={image.id || index} className="relative group">
-                      <img
-                        src={image.url}
-                        alt={image.alt || `Product image ${index + 1}`}
-                        className="w-full h-32 object-cover rounded-lg border"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = '/placeholder.svg';
-                        }}
+              <DndProvider backend={HTML5Backend}>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {imageUrls && imageUrls.length > 0 ? (
+                    imageUrls.map((image, index) => (
+                      <ImageTile
+                        key={`${image.url}-${index}`}
+                        image={image}
+                        index={index}
+                        onDelete={(idx) => handleDeleteImage(String(idx))}
                       />
-                      <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteImage(image.id)}
-                          disabled={deletingImage === image.id}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      {image.isPrimary && (
-                        <Badge className="absolute top-2 left-2 bg-yellow-500">
-                          <Star className="w-3 h-3 mr-1" />
-                          Primary
-                        </Badge>
-                      )}
+                    ))
+                  ) : (
+                    <div className="col-span-full text-center py-8 text-gray-500">
+                      <ImageIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                      <p>No images uploaded</p>
                     </div>
-                  ))
-                ) : (
-                  <div className="col-span-full text-center py-8 text-gray-500">
-                    <ImageIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                    <p>No images uploaded</p>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              </DndProvider>
             )}
           </div>
 

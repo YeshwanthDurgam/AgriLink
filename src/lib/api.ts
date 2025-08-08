@@ -1,3 +1,5 @@
+import axios from 'axios';
+
 const API_BASE_URL = 'http://localhost:5000/api';
 
 // Types for API responses
@@ -791,7 +793,11 @@ class ApiService {
     return handleResponse(response);
   }
 
-  async uploadProductImages(id: string, files: File[]): Promise<{ message: string; images: Array<{ url: string; alt?: string; isPrimary: boolean }> }> {
+  async uploadProductImages(
+    id: string,
+    files: File[],
+    onProgress?: (percent: number) => void
+  ): Promise<{ message: string; images: Array<{ url: string; alt?: string; isPrimary: boolean }> }> {
     const token = getAuthToken();
     if (!token) {
       throw new Error('No authentication token found');
@@ -802,17 +808,20 @@ class ApiService {
       formData.append('images', file);
     });
 
-    const response = await fetch(`${this.baseURL}/products/${id}/images`, {
-      method: 'POST',
+    const response = await axios.post(`${this.baseURL}/products/${id}/images`, formData, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
-      body: formData,
+      onUploadProgress: (evt) => {
+        if (!evt.total) return;
+        const percent = Math.round((evt.loaded * 100) / evt.total);
+        onProgress?.(percent);
+      }
     });
-    return handleResponse(response);
+    return response.data;
   }
 
-  async deleteProductImage(id: string, imageId: string): Promise<{ message: string }> {
+  async deleteProductImage(id: string, imageId: string): Promise<{ message: string; images?: any[] }> {
     const token = getAuthToken();
     if (!token) {
       throw new Error('No authentication token found');
@@ -1225,6 +1234,20 @@ class ApiService {
     return handleResponse(response);
   }
 
+  async toggleReviewHelpful(reviewId: string): Promise<{ success: boolean; voted: boolean; review: Review }> {
+    const token = getAuthToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await fetch(`${this.baseURL}/products/reviews/${reviewId}/helpful`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    return handleResponse(response);
+  }
+
   // Wishlist Methods
   async getWishlist(): Promise<{ wishlist: { products: Product[] } }> {
     const token = getAuthToken();
@@ -1429,6 +1452,27 @@ class ApiService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ userId, subject, message }),
+    });
+    return handleResponse(response);
+  }
+
+  async getFacets(params?: {
+    category?: string;
+    location?: string;
+    organic?: boolean;
+    minPrice?: number;
+    maxPrice?: number;
+    search?: string;
+  }): Promise<{ success: boolean; facets: { categories: any[]; locations: any[]; organic: any[]; availability: any[] } }> {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) queryParams.append(key, String(value));
+      });
+    }
+    const response = await fetch(`${this.baseURL.replace(/\/?$/, '')}/analytics/facets?${queryParams}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
     });
     return handleResponse(response);
   }

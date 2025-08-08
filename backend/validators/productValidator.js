@@ -13,7 +13,7 @@ const createProductValidation = [
     .withMessage('Description must be between 10 and 1000 characters'),
   
   body('category')
-    .isIn(['Vegetables', 'Fruits', 'Grains', 'Herbs', 'Seeds', 'Dairy', 'Other'])
+    .isIn(['Vegetables', 'Fruits', 'Grains', 'Herbs & Spices', 'Seeds', 'Dairy', 'Other'])
     .withMessage('Invalid category'),
   
   body('subcategory')
@@ -40,7 +40,7 @@ const createProductValidation = [
   }),
   
   body('unit')
-    .isIn(['kg', 'gram', 'piece', 'dozen', 'box', 'bunch', 'liter', 'pack'])
+    .isIn(['kg', 'gram', 'piece', 'dozen', 'box', 'bunch', 'liter', 'pack', 'quintal', 'ton'])
     .withMessage('Invalid unit'),
   
   body('minOrderQuantity')
@@ -175,35 +175,130 @@ const updateProductValidation = [
     .isLength({ min: 10, max: 1000 })
     .withMessage('Description must be between 10 and 1000 characters'),
   
+  body('subcategory')
+    .optional()
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Subcategory must be less than 50 characters'),
+  
   body('category')
     .optional()
-    .isIn(['Vegetables', 'Fruits', 'Grains', 'Herbs', 'Seeds', 'Dairy', 'Other'])
+    .isIn(['Vegetables', 'Fruits', 'Grains', 'Herbs & Spices', 'Seeds', 'Dairy', 'Other'])
     .withMessage('Invalid category'),
+  
+  body('basePrice')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Base price must be a positive number'),
   
   body('price')
     .optional()
     .isFloat({ min: 0 })
     .withMessage('Price must be a positive number'),
   
+  body('unit')
+    .optional()
+    .isIn(['kg', 'gram', 'piece', 'dozen', 'box', 'bunch', 'liter', 'pack', 'quintal', 'ton'])
+    .withMessage('Invalid unit'),
+  
+  body('minOrderQuantity')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('Minimum order quantity must be a non-negative integer'),
+  
+  body('maxOrderQuantity')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('Maximum order quantity must be a non-negative integer'),
+  
   body('quantity')
     .optional()
     .isFloat({ min: 0 })
     .withMessage('Quantity must be a positive number'),
-  
-  body('status')
-    .optional()
-    .isIn(['active', 'inactive', 'out_of_stock', 'pending_approval', 'rejected'])
-    .withMessage('Invalid status'),
   
   body('organic')
     .optional()
     .isBoolean()
     .withMessage('Organic must be a boolean value'),
   
-  body('isFeatured')
+  body('certifications')
     .optional()
-    .isBoolean()
-    .withMessage('Is featured must be a boolean value')
+    .isArray()
+    .withMessage('Certifications must be an array'),
+  
+  body('certifications.*')
+    .optional()
+    .isIn(['Organic', 'GAP', 'HACCP', 'ISO', 'FSSAI', 'Other'])
+    .withMessage('Invalid certification type'),
+  
+  body('qualityGrade')
+    .optional()
+    .isIn(['Premium', 'Grade A', 'Grade B', 'Standard'])
+    .withMessage('Invalid quality grade'),
+  
+  body('harvestDate')
+    .optional()
+    .isISO8601()
+    .withMessage('Harvest date must be a valid date'),
+  
+  body('expiryDate')
+    .optional()
+    .isISO8601()
+    .withMessage('Expiry date must be a valid date'),
+  
+  body('shelfLife')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Shelf life must be a positive integer'),
+  
+  body('farmName')
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Farm name must be less than 100 characters'),
+  
+  body('farmLocation')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Farm location must be less than 200 characters'),
+  
+  body('deliveryRadius')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Delivery radius must be a positive number'),
+  
+  body('deliveryTime')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Delivery time must be a positive number'),
+  
+  body('tags')
+    .optional()
+    .isArray()
+    .withMessage('Tags must be an array'),
+  
+  body('tags.*')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Tag must be between 1 and 50 characters'),
+  
+  body('searchKeywords')
+    .optional()
+    .isArray()
+    .withMessage('Search keywords must be an array'),
+  
+  body('searchKeywords.*')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Search keyword must be between 1 and 50 characters'),
+  
+  body('status')
+    .optional()
+    .isIn(['active', 'inactive', 'out_of_stock', 'pending_approval', 'rejected'])
+    .withMessage('Invalid status')
 ];
 
 // Validation rules for product queries
@@ -302,7 +397,8 @@ const uploadProductImagesValidation = [
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    // Removed debug log for validation errors
+    console.log('[Validator] Validation failed for', req.method, req.originalUrl);
+    console.log('[Validator] Errors:', errors.array());
     return res.status(400).json({
       success: false,
       message: 'Validation failed',

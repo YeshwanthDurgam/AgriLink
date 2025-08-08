@@ -35,7 +35,7 @@ const auth = async (req, res, next) => {
       farmName: user.farmName,
       farmLocation: user.farmLocation
     };
-    
+    console.log('[Auth Middleware] req.user:', req.user); // Temporary log
     next();
   } catch (err) {
     console.error('Auth middleware error:', err);

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Header from '@/components/Header';
+import PageHeader from '@/components/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -159,7 +160,7 @@ const Orders = () => {
       <Header />
       
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">My Orders</h1>
+        <PageHeader title="My Orders" description="Track and manage your recent purchases" />
         
         <Tabs defaultValue="all" className="space-y-6">
           <TabsList className="grid grid-cols-5 w-full">

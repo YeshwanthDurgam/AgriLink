@@ -328,35 +328,57 @@ const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-
-    // Find the product
     const product = await Product.findById(id);
     if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
+      return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    // Check if user owns the product or is admin
+    // Ensure only the owner farmer or an admin can update the product
     if (product.farmer.toString() !== req.user.id.toString() && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'You can only update your own products'
-      });
+      return res.status(403).json({ success: false, message: 'You are not authorized to update this product' });
     }
 
-    // Update the product
-    const updatedProduct = await Product.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, runValidators: true }
-    ).populate('farmer', 'name email phone location farmName');
+    // Update fields dynamically, handling nested arrays like tags and searchKeywords
+    for (const key in updateData) {
+      if (Object.prototype.hasOwnProperty.call(updateData, key)) {
+        if (key === 'tags' || key === 'searchKeywords') {
+          product[key] = Array.isArray(updateData[key]) ? updateData[key] : [];
+        } else if (key === 'images') {
+          // Images are handled by separate routes, do not update directly here
+          continue;
+        } else {
+          product[key] = updateData[key];
+        }
+      }
+    }
+
+    await product.save();
+
+    // Return a mapped product consistent with getProduct
+    const fresh = await Product.findById(id)
+      .populate('farmer', 'name email phone location farmName rating joinDate')
+      .lean();
+
+    const mappedProduct = {
+      ...fresh,
+      id: fresh._id,
+      price: fresh.price !== undefined ? fresh.price : fresh.basePrice,
+      basePrice: fresh.basePrice,
+      quantity: fresh.quantity ?? 0,
+      harvestDate: fresh.harvestDate,
+      images: (fresh.images || []).map(img => ({
+        ...img,
+        id: img._id
+      })),
+      farmer: fresh.farmer
+        ? { ...fresh.farmer, id: fresh.farmer._id }
+        : fresh.farmer,
+    };
 
     res.json({
       success: true,
       message: 'Product updated successfully',
-      product: updatedProduct
+      product: mappedProduct,
     });
   } catch (error) {
     console.error('Error updating product:', error);
@@ -491,24 +513,28 @@ const uploadProductImages = async (req, res) => {
     }
 
     // Process uploaded images
-    const imageUrls = [];
+    const newImages = [];
     for (const file of files) {
       const imageUrl = `/uploads/products/${file.filename}`;
-      imageUrls.push({
+      newImages.push({
         url: imageUrl,
         alt: file.originalname,
-        isPrimary: product.images.length === 0 // First image is primary
+        isPrimary: product.images.length === 0 && newImages.length === 0 // First overall becomes primary
       });
     }
 
     // Add new images to product
-    product.images.push(...imageUrls);
+    product.images.push(...newImages);
     await product.save();
+
+    // Reload to ensure _id present
+    const refreshed = await Product.findById(id).lean();
+    const mappedImages = (refreshed.images || []).map(img => ({ ...img, id: img._id }));
 
     res.json({
       success: true,
       message: 'Images uploaded successfully',
-      images: imageUrls
+      images: mappedImages
     });
   } catch (error) {
     console.error('Error uploading product images:', error);
@@ -561,9 +587,12 @@ const deleteProductImage = async (req, res) => {
     product.images.pull(imageId);
     await product.save();
 
+    const refreshed = await Product.findById(id).lean();
+    const mappedImages = (refreshed.images || []).map(img => ({ ...img, id: img._id }));
     res.json({
       success: true,
-      message: 'Image deleted successfully'
+      message: 'Image deleted successfully',
+      images: mappedImages,
     });
   } catch (error) {
     console.error('Error deleting product image:', error);
@@ -616,10 +645,13 @@ const updateProductImageUrls = async (req, res) => {
 
     await product.save();
 
+    const refreshed = await Product.findById(id).lean();
+    const mappedImages = (refreshed.images || []).map(img => ({ ...img, id: img._id }));
+
     res.json({
       success: true,
       message: 'Product images updated successfully',
-      images: product.images
+      images: mappedImages
     });
   } catch (error) {
     console.error('Error updating product image URLs:', error);
@@ -934,6 +966,36 @@ const uploadReviewMedia = async (req, res) => {
   }
 };
 
+// Toggle helpful vote for a review
+const toggleReviewHelpful = async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const userId = req.user.id;
+
+    const review = await Review.findById(reviewId);
+    if (!review) {
+      return res.status(404).json({ success: false, message: 'Review not found' });
+    }
+
+    const hasVoted = review.helpful?.users?.some((u) => u.toString() === userId.toString());
+    if (hasVoted) {
+      review.helpful.users = review.helpful.users.filter((u) => u.toString() !== userId.toString());
+      review.helpful.count = Math.max(0, (review.helpful.count || 0) - 1);
+    } else {
+      review.helpful.users = [...(review.helpful.users || []), userId];
+      review.helpful.count = (review.helpful.count || 0) + 1;
+    }
+
+    await review.save();
+    await review.populate('user', 'name avatar');
+
+    res.json({ success: true, review, voted: !hasVoted });
+  } catch (error) {
+    console.error('Error toggling helpful vote:', error);
+    res.status(500).json({ success: false, message: 'Error updating helpful vote', error: error.message });
+  }
+};
+
 module.exports = {
   createProduct,
   getProducts,
@@ -949,5 +1011,6 @@ module.exports = {
   searchProducts,
   getProductReviews,
   addProductReview,
-  uploadReviewMedia
+  uploadReviewMedia,
+  toggleReviewHelpful
 }; 

@@ -14,6 +14,11 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 }));
 app.use(express.json());
+// Global request logger for debugging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
 
 // Use environment variable for MongoDB URI, fallback to local test database
 const uri = process.env.MONGO_URI || 'mongodb://localhost:27017/test';

@@ -18,6 +18,7 @@ const {
   uploadProductImagesValidation,
   handleValidationErrors
 } = require('../validators/productValidator');
+const { validationResult } = require('express-validator'); // Import validationResult
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, '..', 'uploads', 'products');
@@ -108,6 +109,9 @@ router.post('/reviews/:reviewId/media',
   reviewUpload.array('media', 5), // Maximum 5 files
   productController.uploadReviewMedia
 );
+
+// Helpful vote
+router.post('/reviews/:reviewId/helpful', auth, productController.toggleReviewHelpful);
 
 // Protected routes (authentication required)
 router.use(auth);

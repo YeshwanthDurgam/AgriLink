@@ -55,7 +55,7 @@ module.exports = function roleCheck(...allowedRoles) {
         message: 'Authentication required' 
       });
     }
-    // Debug log for role check
+    console.log(`[RoleCheck Middleware] Invoked for URL: ${req.originalUrl}`);
     console.log('roleCheck middleware:', {
       userRole: req.user.role,
       allowedRoles

@@ -119,14 +119,14 @@ const ProductCard = ({ product, showFarmerInfo = true, showDealBadge = false }: 
 
   return (
     <Card 
-      className="overflow-hidden hover:shadow-lg transition-shadow duration-300 border border-green-100 cursor-pointer h-full flex flex-col group"
+      className="overflow-hidden hover:shadow-lg transition-shadow duration-300 border border-gray-100 cursor-pointer h-full flex flex-col group bg-white"
       onClick={handleCardClick}
     >
-      <div className="relative">
+      <div className="relative bg-gray-50">
         <img 
           src={getPrimaryImageUrl(Array.isArray(product.images) ? product.images : [])}
           alt={product.name}
-          className="w-full h-40 sm:h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+          className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
           onError={(e) => {
             // Fallback to placeholder if image fails to load
             const target = e.target as HTMLImageElement;
@@ -186,16 +186,16 @@ const ProductCard = ({ product, showFarmerInfo = true, showDealBadge = false }: 
         </div>
       </div>
 
-      <CardContent className="p-3 sm:p-4 flex-1 flex flex-col">
+      <CardContent className="p-4 flex-1 flex flex-col">
         <div className="flex justify-between items-start mb-2">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900 line-clamp-2 flex-1 mr-2 group-hover:text-green-600 transition-colors">{product.name}</h3>
+          <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 flex-1 mr-2 group-hover:text-green-600 transition-colors">{product.name}</h3>
           <div className="text-right flex-shrink-0">
             <p className="text-base sm:text-lg font-bold text-green-600">₹{product.basePrice ?? product.price}</p>
             <p className="text-xs sm:text-sm text-gray-500">per {product.unit}</p>
           </div>
         </div>
 
-        <p className="text-gray-600 text-xs sm:text-sm mb-3 line-clamp-2 flex-1">{product.description}</p>
+        <p className="text-gray-600 text-sm mb-3 line-clamp-2 flex-1">{product.description}</p>
 
         <div className="space-y-2">
           <div className="flex items-center text-xs sm:text-sm text-gray-500">
@@ -222,11 +222,11 @@ const ProductCard = ({ product, showFarmerInfo = true, showDealBadge = false }: 
         </div>
       </CardContent>
 
-      <CardFooter className="p-3 sm:p-4 pt-0">
+      <CardFooter className="p-4 pt-0">
         <Button 
           onClick={handleAddToCart}
           disabled={isLoading || product.quantity === 0}
-          className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-sm sm:text-base touch-target group-hover:shadow-lg transition-all duration-300"
+          className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-base touch-target group-hover:shadow-lg transition-all duration-300"
         >
           {isLoading ? (
             "Adding..."

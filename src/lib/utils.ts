@@ -6,8 +6,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Backend base URL for constructing full image URLs
-// Use environment variable if available, otherwise default to localhost:5000
-const BACKEND_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+// Prefer VITE_API_BASE_URL but strip trailing /api to get the true backend origin
+const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const BACKEND_ORIGIN = RAW_API_BASE.replace(/\/?api\/?$/, '');
 
 /**
  * Constructs the full URL for an image by combining the backend base URL with the image path
@@ -26,7 +27,7 @@ export function getImageUrl(imagePath: string): string {
   const normalizedPath = imagePath.replace(/^\//, '').replace(/^uploads\/products\//, '');
   
   // Construct the final URL
-  return `${BACKEND_BASE_URL}/uploads/products/${normalizedPath}`;
+  return `${BACKEND_ORIGIN}/uploads/products/${normalizedPath}`;
 }
 
 /**

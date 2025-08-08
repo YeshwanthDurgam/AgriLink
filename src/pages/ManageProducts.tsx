@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiService, Product, ProductResponse } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import PageHeader from '@/components/PageHeader';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +11,8 @@ import { CheckCircle, AlertCircle, Clock, Check, Pencil, MoreVertical, Trash2, E
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import EditProductDialog from '@/components/EditProductDialog';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { getImageUrl } from '@/lib/utils';
 
 const ManageProducts = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -21,6 +24,7 @@ const ManageProducts = () => {
   const [totalProducts, setTotalProducts] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const { toast } = useToast();
+  const { user, isLoading: isAuthLoading } = useAuth(); // Get logged-in user from AuthContext
 
   // Approve product mutation
   const approveProductMutation = useMutation({
@@ -50,30 +54,58 @@ const ManageProducts = () => {
     }
   });
 
-  // Fetch products from backend
+  // Fetch products from backend (scoped to current farmer)
   const { data, isLoading, error } = useQuery<ProductResponse, Error>({
-    queryKey: ['products', page, statusFilter, searchTerm],
+    queryKey: ['products', user?.id, page, statusFilter, searchTerm],
     queryFn: async () => {
       const params: any = { page, limit: 12 };
       if (statusFilter && statusFilter !== 'all') params.status = statusFilter;
       if (searchTerm && searchTerm.trim() !== '') params.search = searchTerm.trim();
+      if (user && user.role === 'farmer') {
+        params.farmer = user.id;
+      }
       const res = await apiService.getProducts(params);
       return res;
     },
-    // Removed onSuccess callback to resolve type error
+    enabled: !!user, // wait until user is available
+    keepPreviousData: true,
+    staleTime: 60 * 1000,
   });
 
   // Handle data after fetching
   useEffect(() => {
     if (data) {
       setProducts((prevProducts) => {
-        const newProducts = data.products.filter(newProd => !prevProducts.some(p => p.id === newProd.id));
-        return [...prevProducts, ...newProducts];
+        // Replace existing items with fresh ones; keep others; add new ones (supports pagination)
+        const prevById = new Map(prevProducts.map(p => [p.id || p._id, p]));
+        const incomingIds = new Set<string>();
+        data.products.forEach((incoming: any) => {
+          const id = incoming.id || incoming._id;
+          incomingIds.add(id);
+          prevById.set(id, incoming);
+        });
+        return Array.from(prevById.values());
       });
       setTotalProducts(data.pagination.total);
       setHasMore(data.pagination.currentPage < data.pagination.totalPages);
     }
   }, [data]);
+
+  if (isAuthLoading || (!user)) {
+    return (
+      <div className="flex justify-center items-center h-full">
+        <p>Loading your products...</p>
+      </div>
+    );
+  }
+
+  if (user.role !== 'farmer') {
+    return (
+      <div className="flex justify-center items-center h-full">
+        <p>Only farmer accounts can manage products.</p>
+      </div>
+    );
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -124,7 +156,8 @@ const ManageProducts = () => {
       return '/placeholder.svg';
     }
     const primary = images.find(img => img.isPrimary);
-    return primary ? primary.url : images[0].url;
+    const url = primary ? primary.url : images[0].url;
+    return getImageUrl(url);
   };
 
   if (isLoading && products.length === 0) {
@@ -145,13 +178,16 @@ const ManageProducts = () => {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Manage Products</h1>
-        <Button onClick={() => window.location.href = '/add-product'}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Product
-        </Button>
-      </div>
+      <PageHeader
+        title="Manage Products"
+        description="Create, update, and monitor your product listings"
+        actions={(
+          <Button onClick={() => window.location.href = '/add-product'}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Product
+          </Button>
+        )}
+      />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -322,6 +358,9 @@ const ManageProducts = () => {
         product={editProduct}
         open={!!editProduct}
         onOpenChange={closeEditModal}
+        onSaved={(updated) => {
+          setProducts((prev) => prev.map(p => (p.id === (updated as any).id || p._id === (updated as any)._id ? { ...p, ...updated } : p)));
+        }}
       />
     </div>
   );
@@ -335,5 +374,6 @@ const getPrimaryImageUrl = (images: Product['images']) => {
     return '/placeholder.svg';
   }
   const primary = images.find(img => img.isPrimary);
-  return primary ? primary.url : images[0].url;
+  const url = primary ? primary.url : images[0].url;
+  return getImageUrl(url);
 };
