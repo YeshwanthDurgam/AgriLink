@@ -1248,6 +1248,33 @@ class ApiService {
     return handleResponse(response);
   }
 
+  async updateReview(reviewId: string, data: { rating?: number; comment?: string }): Promise<{ success: boolean; review: Review }> {
+    const token = getAuthToken();
+    if (!token) throw new Error('No authentication token found');
+    const response = await fetch(`${this.baseURL}/products/reviews/${reviewId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+    return handleResponse(response);
+  }
+
+  async deleteReview(reviewId: string): Promise<{ success: boolean; message: string }> {
+    const token = getAuthToken();
+    if (!token) throw new Error('No authentication token found');
+    const response = await fetch(`${this.baseURL}/products/reviews/${reviewId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    return handleResponse(response);
+  }
+
   // Wishlist Methods
   async getWishlist(): Promise<{ wishlist: { products: Product[] } }> {
     const token = getAuthToken();

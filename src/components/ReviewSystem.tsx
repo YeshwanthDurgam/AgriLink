@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { useToast } from '../hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ReviewSystemProps {
   productId: string;
@@ -25,6 +26,7 @@ interface ReviewFormData {
 }
 
 const ReviewSystem: React.FC<ReviewSystemProps> = ({ productId, productName }) => {
+  const { user, isAuthenticated } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<ReviewFormData>({
     rating: 0,
@@ -224,7 +226,11 @@ const ReviewSystem: React.FC<ReviewSystemProps> = ({ productId, productName }) =
       </Card>
 
       {/* Review Form */}
-      {!showForm ? (
+      {!isAuthenticated ? (
+        <Card>
+          <CardContent className="py-6 text-center text-sm text-gray-600">Please log in to write a review.</CardContent>
+        </Card>
+      ) : !showForm ? (
         <Button 
           onClick={() => setShowForm(true)}
           className="w-full md:w-auto"
@@ -409,7 +415,10 @@ const ReviewSystem: React.FC<ReviewSystemProps> = ({ productId, productName }) =
             No reviews yet. Be the first to review this product!
           </div>
         ) : (
-          reviews.map((review) => (
+          reviews
+            .slice()
+            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .map((review) => (
             <Card key={review.id || review._id}>
               <CardContent className="pt-6">
                 <div className="flex items-start gap-4">
@@ -482,7 +491,7 @@ const ReviewSystem: React.FC<ReviewSystemProps> = ({ productId, productName }) =
                       </div>
                     )}
 
-                    {/* Helpful Button */}
+                    {/* Actions */}
                     <div className="flex items-center gap-2 mt-3">
                       <Button
                         variant="ghost"
@@ -499,6 +508,43 @@ const ReviewSystem: React.FC<ReviewSystemProps> = ({ productId, productName }) =
                       >
                         <ThumbsUp className="w-4 h-4 mr-1" /> Helpful ({review.helpful?.count || 0})
                       </Button>
+
+                      {/* Edit/Delete for owner */}
+                      {isAuthenticated && ((review as any).user?._id === (user as any)?._id || (review as any).user?.id === (user as any)?.id) && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              const newComment = prompt('Update your review comment', review.comment || '');
+                              if (newComment === null) return;
+                              try {
+                                await apiService.updateReview((review as any)._id || (review as any).id, { comment: newComment });
+                                queryClient.invalidateQueries({ queryKey: ['product-reviews', productId] });
+                              } catch (err) {
+                                toast({ title: 'Failed to update review', variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={async () => {
+                              if (!confirm('Delete this review?')) return;
+                              try {
+                                await apiService.deleteReview((review as any)._id || (review as any).id);
+                                queryClient.invalidateQueries({ queryKey: ['product-reviews', productId] });
+                              } catch (err) {
+                                toast({ title: 'Failed to delete review', variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

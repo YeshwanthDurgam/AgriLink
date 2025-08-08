@@ -835,4 +835,4 @@ const EditProductDialog: React.FC<EditProductDialogProps> = ({
   );
 };
 
-export default EditProductDialog; 
+export default EditProductDialog;

@@ -30,6 +30,8 @@ interface Product {
   deal?: string; // Added for deals
   discount?: number; // Added for discounts
   isWishlisted?: boolean; // Add this property
+  averageRating?: number;
+  reviewCount?: number;
 }
 
 interface ProductCardProps {
@@ -194,6 +196,15 @@ const ProductCard = ({ product, showFarmerInfo = true, showDealBadge = false }: 
             <p className="text-xs sm:text-sm text-gray-500">per {product.unit}</p>
           </div>
         </div>
+
+        {/* Rating summary */}
+        {(product.averageRating || product.reviewCount) && (
+          <div className="flex items-center gap-1 mb-2 text-xs text-gray-600">
+            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+            <span>{(product.averageRating || 0).toFixed(1)}</span>
+            <span>({product.reviewCount || 0})</span>
+          </div>
+        )}
 
         <p className="text-gray-600 text-sm mb-3 line-clamp-2 flex-1">{product.description}</p>
 

@@ -112,6 +112,8 @@ router.post('/reviews/:reviewId/media',
 
 // Helpful vote
 router.post('/reviews/:reviewId/helpful', auth, productController.toggleReviewHelpful);
+router.put('/reviews/:reviewId', auth, productController.updateReview);
+router.delete('/reviews/:reviewId', auth, productController.deleteReview);
 
 // Protected routes (authentication required)
 router.use(auth);

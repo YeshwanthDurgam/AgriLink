@@ -996,6 +996,65 @@ const toggleReviewHelpful = async (req, res) => {
   }
 };
 
+// Helper to recalculate product average rating and count
+const recalculateProductRating = async (productId) => {
+  const stats = await Review.aggregate([
+    { $match: { product: new (require('mongoose').Types.ObjectId)(productId) } },
+    { $group: { _id: '$product', avg: { $avg: '$rating' }, count: { $sum: 1 } } }
+  ]);
+  const avg = stats[0]?.avg || 0;
+  const count = stats[0]?.count || 0;
+  await Product.findByIdAndUpdate(productId, { averageRating: avg, reviewCount: count });
+};
+
+// Update a review (owner only)
+const updateReview = async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const { rating, comment } = req.body;
+    const userId = req.user.id;
+
+    const review = await Review.findById(reviewId);
+    if (!review) return res.status(404).json({ success: false, message: 'Review not found' });
+    if (review.user.toString() !== userId.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to edit this review' });
+    }
+
+    if (rating !== undefined) review.rating = rating;
+    if (comment !== undefined) review.comment = comment;
+    await review.save();
+    await review.populate('user', 'name avatar');
+
+    await recalculateProductRating(review.product);
+
+    res.json({ success: true, review });
+  } catch (error) {
+    console.error('Error updating review:', error);
+    res.status(500).json({ success: false, message: 'Error updating review', error: error.message });
+  }
+};
+
+// Delete a review (owner only)
+const deleteReview = async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const userId = req.user.id;
+
+    const review = await Review.findById(reviewId);
+    if (!review) return res.status(404).json({ success: false, message: 'Review not found' });
+    if (review.user.toString() !== userId.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this review' });
+    }
+
+    await Review.findByIdAndDelete(reviewId);
+    await recalculateProductRating(review.product);
+    res.json({ success: true, message: 'Review deleted' });
+  } catch (error) {
+    console.error('Error deleting review:', error);
+    res.status(500).json({ success: false, message: 'Error deleting review', error: error.message });
+  }
+};
+
 module.exports = {
   createProduct,
   getProducts,
@@ -1012,5 +1071,7 @@ module.exports = {
   getProductReviews,
   addProductReview,
   uploadReviewMedia,
-  toggleReviewHelpful
+  toggleReviewHelpful,
+  updateReview,
+  deleteReview
 }; 

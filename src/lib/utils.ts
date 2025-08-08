@@ -17,17 +17,22 @@ const BACKEND_ORIGIN = RAW_API_BASE.replace(/\/?api\/?$/, '');
  */
 export function getImageUrl(imagePath: string): string {
   if (!imagePath) return '/placeholder.svg';
-  
-  // If the image path is already a full URL, return it as is
+
+  // If already absolute URL, return as-is
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
-  
-  // Normalize path to remove leading slashes and 'uploads/products'
-  const normalizedPath = imagePath.replace(/^\//, '').replace(/^uploads\/products\//, '');
-  
-  // Construct the final URL
-  return `${BACKEND_ORIGIN}/uploads/products/${normalizedPath}`;
+
+  // Ensure leading slash
+  const withLeadingSlash = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+
+  // If it's an uploads path (products or reviews), just prefix backend origin
+  if (withLeadingSlash.startsWith('/uploads/')) {
+    return `${BACKEND_ORIGIN}${withLeadingSlash}`;
+  }
+
+  // Fallback: assume it's a product image filename
+  return `${BACKEND_ORIGIN}/uploads/products/${withLeadingSlash.replace(/^\//, '')}`;
 }
 
 /**
