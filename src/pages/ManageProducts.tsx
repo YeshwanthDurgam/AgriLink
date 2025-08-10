@@ -55,7 +55,7 @@ const ManageProducts = () => {
   });
 
   // Fetch products from backend (scoped to current farmer)
-  const { data, isLoading, error } = useQuery<ProductResponse, Error>({
+  const { data, isLoading, error } = useQuery<ProductResponse, Error, ProductResponse>({
     queryKey: ['products', user?.id, page, statusFilter, searchTerm],
     queryFn: async () => {
       const params: any = { page, limit: 12 };
@@ -68,7 +68,7 @@ const ManageProducts = () => {
       return res;
     },
     enabled: !!user, // wait until user is available
-    keepPreviousData: true,
+    placeholderData: (prev) => prev as ProductResponse | undefined,
     staleTime: 60 * 1000,
   });
 
@@ -99,10 +99,10 @@ const ManageProducts = () => {
     );
   }
 
-  if (user.role !== 'farmer') {
+  if (user.role !== 'farmer' && user.role !== 'admin') {
     return (
       <div className="flex justify-center items-center h-full">
-        <p>Only farmer accounts can manage products.</p>
+        <p>Only farmer or admin accounts can manage products.</p>
       </div>
     );
   }

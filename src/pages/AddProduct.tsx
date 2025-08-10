@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import DashboardLayout from '@/components/DashboardLayout';
+import PageHeader from '@/components/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,8 @@ import {
   Loader2, 
   AlertCircle,
   CheckCircle,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ArrowLeft
 } from 'lucide-react';
 import { apiService, CreateProductData } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -303,29 +304,53 @@ const AddProduct = () => {
   try {
     if (errorBoundary) throw new Error(errorBoundary);
     return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Add New Product</h1>
-            <p className="text-gray-600">Create a new product listing for a farmer</p>
-          </div>
-        </div>
+      <div className="space-y-6 p-6 bg-emerald-50 min-h-screen">
+        <PageHeader
+          title="Add New Product"
+          description={user?.role === 'admin' ? 'Create a new product listing for a farmer' : 'Create a new product listing'}
+          actions={(
+            <div className="flex gap-2">
+              <Button variant="ghost" type="button" onClick={() => navigate(-1)}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              <Button variant="outline" type="button" onClick={() => navigate(user?.role === 'admin' ? '/admin/products' : '/manage-products')}>
+                Cancel
+              </Button>
+              <Button type="submit" form="add-product-form" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Product
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        />
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form id="add-product-form" onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Farmer Selection (admins only). Farmers create for themselves automatically */}
             {user?.role === 'admin' ? (
               <Card>
                 <CardHeader>
                   <CardTitle>Farmer</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-2">
                   <Label htmlFor="farmer">Select Farmer *</Label>
                   <Select value={selectedFarmer} onValueChange={setSelectedFarmer}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a farmer" />
                     </SelectTrigger>
                     <SelectContent>
+                      {farmers.length === 0 && (
+                        <div className="px-3 py-2 text-sm text-gray-500">No farmers loaded</div>
+                      )}
                       {farmers.map(farmer => (
                         <SelectItem key={farmer._id} value={farmer._id}>
                           {farmer.name} ({farmer.email})
@@ -620,7 +645,7 @@ const AddProduct = () => {
             <Card>
                   <CardHeader>
                 <CardTitle>Product Images</CardTitle>
-                <p className="text-sm text-gray-600">Upload up to 5 images (max 5MB each)</p>
+                <p className="text-sm text-muted-foreground">Upload up to 5 images (max 5MB each)</p>
                   </CardHeader>
               <CardContent className="space-y-4">
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
@@ -632,26 +657,21 @@ const AddProduct = () => {
                     className="hidden"
                     id="image-upload"
                   />
-                  <label htmlFor="image-upload" className="cursor-pointer">
-                    <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                    <p className="text-sm text-gray-600">Click to upload images</p>
+                  <label htmlFor="image-upload" className="cursor-pointer inline-flex items-center gap-2 text-sm">
+                    <Upload className="h-5 w-5 text-gray-400" />
+                    Click to upload images
                   </label>
                 </div>
-
-                {/* Image Previews */}
                 {imagePreviewUrls.length > 0 && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {imagePreviewUrls.map((url, index) => (
-                      <div key={index} className="relative">
-                        <img
-                          src={url}
-                          alt={`Preview ${index + 1}`}
-                          className="w-full h-24 object-cover rounded-lg"
-                        />
+                      <div key={index} className="relative group">
+                        <img src={url} alt={`Preview ${index + 1}`} className="w-full h-24 object-cover rounded-lg border" />
                         <button
                           type="button"
                           onClick={() => removeImage(index)}
-                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100"
+                          aria-label="Remove image"
                         >
                           <X className="h-4 w-4" />
                         </button>
@@ -674,9 +694,8 @@ const AddProduct = () => {
                     checked={formData.isFeatured}
                     onCheckedChange={(checked) => handleInputChange('isFeatured', checked)}
                   />
-                  <Label htmlFor="isFeatured">Feature this product (admin approval required)</Label>
-            </div>
-
+                  <Label htmlFor="isFeatured">Feature this product</Label>
+                </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="isSeasonal"
@@ -688,34 +707,21 @@ const AddProduct = () => {
               </CardContent>
             </Card>
 
-            {/* Submit Buttons */}
-            <div className="flex gap-4">
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex-1 bg-green-600 hover:bg-green-700"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating Product...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Product
-                  </>
-                )}
-              </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => navigate('/admin/products')}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-            </div>
+            {/* Summary */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div><span className="text-muted-foreground">Name:</span> {formData.name || '—'}</div>
+                <div><span className="text-muted-foreground">Category:</span> {formData.category}</div>
+                <div><span className="text-muted-foreground">Price:</span> {formData.price ? `₹${formData.price}/${formData.unit}` : '—'}</div>
+                <div><span className="text-muted-foreground">Quantity:</span> {formData.quantity || '—'} {formData.unit || ''}</div>
+                <div><span className="text-muted-foreground">Images:</span> {imagePreviewUrls.length}</div>
+              </CardContent>
+            </Card>
+
+            {/* Submit Buttons moved to PageHeader actions */}
           </form>
         </div>
     );

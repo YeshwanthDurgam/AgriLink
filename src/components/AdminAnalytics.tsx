@@ -83,28 +83,40 @@ const AdminAnalytics = () => {
       setError('');
 
       // Fetch all analytics data
-      const [topProductsRes, cropSeasonsRes, userActivityRes] = await Promise.all([
+      const [topProductsRes, cropSeasonsRes, userActivityRes, dashboardStatsRes, systemHealthRes] = await Promise.all([
         apiService.get('/admin/analytics/top-products?limit=10'),
         apiService.get('/admin/analytics/crop-seasons'),
-        apiService.get('/admin/analytics/user-activity?period=7d')
+        apiService.get('/admin/analytics/user-activity?period=7d'),
+        apiService.get('/admin/analytics/dashboard-stats'),
+        apiService.get('/admin/analytics/system-health')
       ]);
+
+      // Normalize user activity into a simple list for rendering
+      const normalizedActivity = Array.isArray(userActivityRes?.data?.recentAdminActions)
+        ? userActivityRes.data.recentAdminActions.map((a: any) => ({
+            action: a._id,
+            timestamp: new Date().toISOString(),
+            user: 'system',
+            details: `Count: ${a.count}`
+          }))
+        : [];
 
       const data: AnalyticsData = {
         platformGrowth: {
-          newFarmers: 0, // Will be populated from dashboard stats
-          newBuyers: 0,
-          totalProducts: 0,
+          newFarmers: dashboardStatsRes?.success ? (dashboardStatsRes.data?.users?.newThisMonth || 0) : 0,
+          newBuyers: dashboardStatsRes?.success ? (dashboardStatsRes.data?.users?.newThisMonth || 0) : 0,
+          totalProducts: dashboardStatsRes?.success ? (dashboardStatsRes.data?.products?.total || 0) : 0,
           qualityScore: 4.6
         },
         qualityMetrics: {
-          totalFlags: 0,
-          pendingFlags: 0,
-          activeAnnouncements: 0,
-          systemHealth: 'Healthy'
+          totalFlags: dashboardStatsRes?.success ? (dashboardStatsRes.data?.quality?.totalFlags || 0) : 0,
+          pendingFlags: dashboardStatsRes?.success ? (dashboardStatsRes.data?.quality?.pendingFlags || 0) : 0,
+          activeAnnouncements: dashboardStatsRes?.success ? (dashboardStatsRes.data?.announcements?.active || 0) : 0,
+          systemHealth: systemHealthRes?.success ? 'Healthy' : 'Unknown'
         },
-        topProducts: topProductsRes.success ? topProductsRes.data : [],
-        cropSeasons: cropSeasonsRes.success ? cropSeasonsRes.data : [],
-        userActivity: userActivityRes.success ? userActivityRes.data : [],
+        topProducts: topProductsRes?.success ? topProductsRes.data : [],
+        cropSeasons: cropSeasonsRes?.success ? cropSeasonsRes.data : [],
+        userActivity: normalizedActivity,
         revenueData: {
           total: 0,
           thisMonth: 0,
@@ -324,7 +336,7 @@ const AdminAnalytics = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {analyticsData?.topProducts.map((product, index) => (
+                {analyticsData?.topProducts?.map((product, index) => (
                   <div key={product._id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center text-sm font-bold">
@@ -338,10 +350,10 @@ const AdminAnalytics = () => {
                     <div className="text-right">
                       <div className="font-semibold">{product.orders} orders</div>
                       <div className="text-sm text-gray-500">{formatCurrency(product.revenue)}</div>
-                      <div className="flex items-center gap-1 text-sm">
-                        <Star className="w-3 h-3 text-yellow-500 fill-current" />
-                        {product.rating.toFixed(1)}
-                      </div>
+                       <div className="flex items-center gap-1 text-sm">
+                         <Star className="w-3 h-3 text-yellow-500 fill-current" />
+                         {typeof product.rating === 'number' ? product.rating.toFixed(1) : 'N/A'}
+                       </div>
                     </div>
                   </div>
                 ))}

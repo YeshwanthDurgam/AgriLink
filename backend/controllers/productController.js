@@ -49,7 +49,7 @@ const createProduct = async (req, res) => {
     }
 
     let farmer;
-    let creatorId = req.user._id;
+    let creatorId = req.user.id;
     let representativeId;
     // If admin, allow specifying farmer in body
     if (req.user.role === 'admin') {
